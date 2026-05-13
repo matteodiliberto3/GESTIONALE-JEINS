@@ -51,8 +51,8 @@ router.post('/', async (req, res) => {
     try {
         const { name, contactPerson, email, phone, status, area } = req.body;
 
-        if (!name || !email) {
-            return res.status(400).json({ error: 'Nome e email sono obbligatori' });
+        if (!name || !name.trim()) {
+            return res.status(400).json({ error: 'Il nome del cliente è obbligatorio' });
         }
 
         const result = await pool.query(
@@ -60,7 +60,7 @@ router.post('/', async (req, res) => {
              VALUES ($1, $2, $3, $4, $5, $6, $7)
              RETURNING client_id as id, name, contact_person as "contactPerson", 
                        email, phone, status, area, created_at as "createdAt"`,
-            [name, contactPerson || null, email, phone || null, status || 'Prospect', area || null, req.user.userId]
+            [name.trim(), contactPerson || null, email || null, phone || null, status || 'Prospect', area || null, req.user.userId]
         );
 
         res.status(201).json(result.rows[0]);

@@ -1,0 +1,161 @@
+import { Search, Bell, NotebookPen, ChevronDown, LogOut } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Avatar } from '../components/ui/Avatar';
+import type { User } from '../types/models';
+
+interface TopBarProps {
+    user: User | null;
+    onLogout: () => void;
+    title?: string;
+    onNavigate?: (view: string) => void;
+    onQuickAction?: (title: string, message?: string) => void;
+}
+
+const SEARCH_TARGETS = [
+    { label: 'Dashboard', hint: 'Panoramica e Kanban', view: 'dashboard' },
+    { label: 'Clienti', hint: 'Anagrafica e stato commerciale', view: 'clienti' },
+    { label: 'Progetti', hint: 'Progetti e todo list', view: 'progetti' },
+    { label: 'Contabilita', hint: 'Contratti, fatture e preventivi', view: 'contabilita' },
+    { label: 'Calendario', hint: 'Eventi e chiamate', view: 'calendario' },
+    { label: 'Inbox', hint: 'Messaggi e richieste', view: 'inbox' },
+    { label: 'Reports', hint: 'Metriche e riepiloghi', view: 'reports' },
+    { label: 'Notifiche', hint: 'Aggiornamenti recenti', view: 'notifiche' },
+];
+
+export function TopBar({ user, onLogout, title, onNavigate, onQuickAction }: TopBarProps) {
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [query, setQuery] = useState('');
+    const [searchOpen, setSearchOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+    const searchRef = useRef<HTMLDivElement>(null);
+
+    const results = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        if (!q) return SEARCH_TARGETS.slice(0, 5);
+        return SEARCH_TARGETS.filter(t =>
+            `${t.label} ${t.hint}`.toLowerCase().includes(q)
+        );
+    }, [query]);
+
+    useEffect(() => {
+        const onClick = (e: MouseEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) setMenuOpen(false);
+            if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchOpen(false);
+        };
+        document.addEventListener('mousedown', onClick);
+        return () => document.removeEventListener('mousedown', onClick);
+    }, []);
+
+    const goTo = (view: string) => {
+        onNavigate?.(view);
+        setQuery('');
+        setSearchOpen(false);
+    };
+
+    return (
+        <header className="h-16 border-b border-line/60 bg-surface-raised/80 glass
+                           flex items-center justify-between px-4 md:px-6 gap-4 flex-shrink-0
+                           relative z-30">
+            <div className="flex-1 max-w-xl relative" ref={searchRef}>
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle pointer-events-none" />
+                <input
+                    type="text"
+                    value={query}
+                    onChange={(e) => { setQuery(e.target.value); setSearchOpen(true); }}
+                    onFocus={() => setSearchOpen(true)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' && results[0]) goTo(results[0].view);
+                        if (e.key === 'Escape') setSearchOpen(false);
+                    }}
+                    placeholder="Cerca task, progetti, persone…"
+                    className="input pl-10 pr-12 py-2.5"
+                />
+                <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden md:inline-flex items-center
+                                px-1.5 py-0.5 rounded-md border border-line/70 bg-surface-inset
+                                text-[10px] font-medium text-ink-subtle">
+                    /
+                </kbd>
+                {searchOpen && (
+                    <div className="absolute left-0 right-0 top-full mt-2 card p-2 z-50 animate-fade-in">
+                        {results.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-ink-subtle">
+                                Nessun risultato. Prova con "clienti", "progetti" o "calendario".
+                            </div>
+                        ) : results.map(result => (
+                            <button
+                                key={result.view}
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => goTo(result.view)}
+                                className="w-full text-left px-3 py-2 rounded-lg hover:bg-surface-inset transition-colors"
+                            >
+                                <span className="block text-sm font-medium text-ink">{result.label}</span>
+                                <span className="block text-xs text-ink-subtle">{result.hint}</span>
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {title && (
+                <h1 className="hidden xl:block text-sm font-medium text-ink-muted">{title}</h1>
+            )}
+
+            <div className="flex items-center gap-1.5">
+                <button
+                    className="icon-btn"
+                    aria-label="Note"
+                    onClick={() => onQuickAction?.('Note rapide', 'Qui potrai raccogliere appunti collegati a clienti, progetti e task.')}
+                >
+                    <NotebookPen className="w-4 h-4" />
+                </button>
+                <button
+                    className="icon-btn relative"
+                    aria-label="Notifiche"
+                    onClick={() => onNavigate?.('notifiche')}
+                >
+                    <Bell className="w-4 h-4" />
+                    <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-rose-500 ring-2 ring-surface-raised" />
+                </button>
+
+                <div className="relative" ref={ref}>
+                    <button
+                        onClick={() => setMenuOpen(o => !o)}
+                        className="flex items-center gap-2.5 pl-1.5 pr-2 py-1 rounded-xl hover:bg-surface-inset transition"
+                    >
+                        <Avatar
+                            name={user?.name || '?'}
+                            src={user?.avatarUrl}
+                            color={user?.color}
+                            size="sm"
+                        />
+                        <div className="hidden sm:block text-left leading-tight">
+                            <div className="text-sm font-medium text-ink">{user?.name || '—'}</div>
+                            <div className="text-[10px] text-ink-subtle">
+                                {user?.handle || `@${(user?.email || '').split('@')[0]}`}
+                            </div>
+                        </div>
+                        <ChevronDown className="w-3.5 h-3.5 text-ink-subtle hidden sm:block" />
+                    </button>
+
+                    {menuOpen && (
+                        <div className="absolute right-0 mt-2 w-56 card p-2 z-50 animate-fade-in">
+                            <div className="px-3 py-2">
+                                <div className="text-sm font-medium text-ink">{user?.name}</div>
+                                <div className="text-xs text-ink-subtle">{user?.email}</div>
+                            </div>
+                            <div className="border-t border-line/60 my-1" />
+                            <button
+                                onClick={onLogout}
+                                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-rose-400 hover:bg-rose-500/10"
+                            >
+                                <LogOut className="w-4 h-4" />
+                                Esci
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </header>
+    );
+}

@@ -1,92 +1,89 @@
-import { useState, useMemo, useEffect } from 'react';
-import {
-    LayoutDashboard,
-    Users,
-    Briefcase,
-    FileText,
-    Plus,
-    ChevronDown,
-    ChevronRight,
-    Trash2,
-    CheckCircle,
-    Circle,
-    X,
-    Menu,
-    Flag,
-    LogOut,
-    User
-} from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { X, Plus, ArrowRight, Bell, Inbox, BarChart3, Settings, HelpCircle } from 'lucide-react';
+import type { ReactNode } from 'react';
+
 import Login from './components/Login';
 import Calendar from './components/Calendar';
-import { clientsAPI, projectsAPI, contractsAPI, authAPI } from './services/api.ts';
+import { ThemeProvider } from './theme/ThemeProvider';
+import { AppShell } from './layout/AppShell';
+import { DashboardView } from './components/dashboard/DashboardView';
+import { ClientiView } from './views/ClientiView';
+import { ProgettiView } from './views/ProgettiView';
+import { ContabilitaView } from './views/ContabilitaView';
 
-// --- Costanti per le Opzioni ---
+import {
+    clientsAPI, projectsAPI, contractsAPI, authAPI, usersAPI,
+} from './services/api';
+import type { Client, Contract, Project, User } from './types/models';
+
+const AREA_OPTIONS = ['CDA', 'Marketing', 'IT', 'Commerciale'];
 const CLIENT_STATUS_OPTIONS = ['Prospect', 'In Contatto', 'In Negoziazione', 'Attivo', 'Chiuso', 'Perso'];
 const PROJECT_STATUS_OPTIONS = ['Pianificato', 'In Corso', 'In Revisione', 'Completato', 'Sospeso'];
-const TODO_PRIORITY_OPTIONS = ['Bassa', 'Media', 'Alta'];
 const CONTRACT_TYPE_OPTIONS = ['Contratto', 'Fattura', 'Preventivo'];
 const CONTRACT_STATUS_OPTIONS = ['Bozza', 'Inviato', 'Firmato', 'Pagato', 'Annullato'];
-const AREA_OPTIONS = ['CDA', 'Marketing', 'IT', 'Commerciale'];
 
-// --- Componente Principale ---
 export default function App() {
-    const [user, setUser] = useState<any>(null);
+    return (
+        <ThemeProvider>
+            <AppRoot />
+        </ThemeProvider>
+    );
+}
+
+function AppRoot() {
+    const [user, setUser] = useState<User | null>(null);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    const [clients, setClients] = useState<any[]>([]);
-    const [projects, setProjects] = useState<any[]>([]);
-    const [contracts, setContracts] = useState<any[]>([]);
+    const [clients, setClients] = useState<Client[]>([]);
+    const [projects, setProjects] = useState<Project[]>([]);
+    const [contracts, setContracts] = useState<Contract[]>([]);
 
     const [activeView, setActiveView] = useState('dashboard');
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [modalContent, setModalContent] = useState<any>(null);
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+    const [modal, setModal] = useState<ReactNode | null>(null);
 
-    // Verifica autenticazione all'avvio
     useEffect(() => {
         const token = localStorage.getItem('token');
-        const savedUser = localStorage.getItem('user');
+        if (!token) { setLoading(false); return; }
 
-        if (token && savedUser) {
-            // Verifica il token
-            authAPI.verify()
-                .then((response: any) => {
-                    setUser(response.user);
-                    setIsAuthenticated(true);
-                    loadData();
-                })
-                .catch(() => {
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('user');
-                    setIsAuthenticated(false);
-                })
-                .finally(() => setLoading(false));
-        } else {
-            setLoading(false);
-        }
+        authAPI.verify()
+            .then(async (res: any) => {
+                let me = res.user as User;
+                try { me = await usersAPI.getMe(); } catch { /* ignore */ }
+                setUser(me);
+                setIsAuthenticated(true);
+                await loadData();
+            })
+            .catch(() => {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+            })
+            .finally(() => setLoading(false));
     }, []);
 
-    // Carica dati dal backend
     const loadData = async () => {
         try {
-            const [clientsData, projectsData, contractsData] = await Promise.all([
+            const [c, p, ct] = await Promise.all([
                 clientsAPI.getAll(),
                 projectsAPI.getAll(),
                 contractsAPI.getAll(),
             ]);
-            setClients(clientsData);
-            setProjects(projectsData);
-            setContracts(contractsData);
-        } catch (error) {
-            console.error('Errore nel caricamento dei dati:', error);
+            setClients(c);
+            setProjects(p);
+            setContracts(ct);
+            if (!activeProjectId && p.length) setActiveProjectId(p[0].id);
+        } catch (err) {
+            console.error('Errore caricamento dati:', err);
         }
     };
 
-    const handleLoginSuccess = (userData: any) => {
-        setUser(userData);
+    const handleLoginSuccess = async (data: any) => {
+        let me = data as User;
+        try { me = await usersAPI.getMe(); } catch { /* ignore */ }
+        setUser(me);
         setIsAuthenticated(true);
-        loadData();
+        await loadData();
     };
 
     const handleLogout = () => {
@@ -94,182 +91,156 @@ export default function App() {
         localStorage.removeItem('user');
         setUser(null);
         setIsAuthenticated(false);
-        setClients([]);
-        setProjects([]);
-        setContracts([]);
+        setClients([]); setProjects([]); setContracts([]);
     };
 
-    // --- Funzioni CRUD con API ---
+    // --- CRUD wrappers ---
 
-    // Clienti
-    const addClient = async (client: any) => {
+    const addClient = async (data: any) => {
         try {
-            const newClient = await clientsAPI.create(client);
-            setClients([...clients, newClient]);
-            setIsModalOpen(false);
-        } catch (error: any) {
-            alert(error.message || 'Errore nella creazione del cliente');
-        }
+            const created = await clientsAPI.create(data);
+            setClients(c => [...c, created]);
+            setModal(null);
+        } catch (e: any) { alert(e.message); }
     };
-
-    const updateClientStatus = async (clientId: string, status: string) => {
+    const updateClientStatus = async (id: string, status: string) => {
         try {
-            const updated = await clientsAPI.updateStatus(clientId, status);
-            setClients(clients.map(c => c.id === clientId ? updated : c));
-        } catch (error: any) {
-            alert(error.message || 'Errore nell\'aggiornamento dello stato');
-        }
+            const u = await clientsAPI.updateStatus(id, status);
+            setClients(c => c.map(x => x.id === id ? u : x));
+        } catch (e: any) { alert(e.message); }
     };
-
-    const deleteClient = async (clientId: string) => {
-        if (!window.confirm('Sei sicuro di voler eliminare questo cliente? Verranno eliminati anche i progetti e i contratti associati.')) {
-            return;
-        }
+    const deleteClient = async (id: string) => {
+        if (!window.confirm('Eliminare il cliente? I progetti e contratti collegati verranno rimossi.')) return;
         try {
-            await clientsAPI.delete(clientId);
-            setClients(clients.filter(c => c.id !== clientId));
-            setProjects(projects.filter(p => p.clientId !== clientId));
-            setContracts(contracts.filter(c => c.clientId !== clientId));
-        } catch (error: any) {
-            alert(error.message || 'Errore nell\'eliminazione del cliente');
-        }
+            await clientsAPI.delete(id);
+            setClients(c => c.filter(x => x.id !== id));
+            setProjects(p => p.filter(x => x.clientId !== id));
+            setContracts(ct => ct.filter(x => x.clientId !== id));
+        } catch (e: any) { alert(e.message); }
     };
 
-    // Progetti
-    const addProject = async (project: any) => {
+    const addProject = async (data: any) => {
         try {
-            const newProject = await projectsAPI.create(project);
-            setProjects([...projects, newProject]);
-            setIsModalOpen(false);
-        } catch (error: any) {
-            alert(error.message || 'Errore nella creazione del progetto');
-        }
-    };
+            let clientId: string | undefined = data.clientId;
+            const typedName: string = (data.clientName || '').trim();
 
-    const updateProjectStatus = async (projectId: string, status: string) => {
+            if (!clientId && typedName) {
+                const match = clients.find(
+                    c => c.name.trim().toLowerCase() === typedName.toLowerCase()
+                );
+                if (match) {
+                    clientId = match.id;
+                } else {
+                    const newClient = await clientsAPI.create({ name: typedName });
+                    setClients(c => [...c, newClient]);
+                    clientId = newClient.id;
+                }
+            }
+
+            const payload = {
+                name: data.name,
+                clientId,
+                area: data.area,
+                status: data.status,
+            };
+            const created = await projectsAPI.create(payload);
+            setProjects(p => [...p, created]);
+            setModal(null);
+        } catch (e: any) { alert(e.message); }
+    };
+    const updateProjectStatus = async (id: string, status: string) => {
         try {
-            const updated = await projectsAPI.updateStatus(projectId, status);
-            setProjects(projects.map(p => p.id === projectId ? { ...p, status: updated.status } : p));
-        } catch (error: any) {
-            alert(error.message || 'Errore nell\'aggiornamento dello stato');
-        }
+            const u = await projectsAPI.updateStatus(id, status);
+            setProjects(p => p.map(x => x.id === id ? { ...x, status: u.status } : x));
+        } catch (e: any) { alert(e.message); }
     };
-
-    const deleteProject = async (projectId: string) => {
-        if (!window.confirm('Sei sicuro di voler eliminare questo progetto?')) {
-            return;
-        }
+    const deleteProject = async (id: string) => {
+        if (!window.confirm('Eliminare il progetto?')) return;
         try {
-            await projectsAPI.delete(projectId);
-            setProjects(projects.filter(p => p.id !== projectId));
-            setContracts(contracts.filter(c => c.projectId !== projectId));
-        } catch (error: any) {
-            alert(error.message || 'Errore nell\'eliminazione del progetto');
-        }
+            await projectsAPI.delete(id);
+            setProjects(p => p.filter(x => x.id !== id));
+            setContracts(ct => ct.filter(x => x.projectId !== id));
+        } catch (e: any) { alert(e.message); }
     };
 
-    // To-do
-    const addTodoToProject = async (projectId: string, todoText: string, priority: string) => {
+    const addTodo = async (projectId: string, text: string, priority: string) => {
         try {
-            const newTodo = await projectsAPI.addTodo(projectId, { text: todoText, priority });
-            setProjects(projects.map(p =>
-                p.id === projectId ? { ...p, todos: [...p.todos, newTodo] } : p
-            ));
-        } catch (error: any) {
-            alert(error.message || 'Errore nell\'aggiunta del todo');
-        }
+            const t = await projectsAPI.addTodo(projectId, { text, priority });
+            setProjects(p => p.map(x => x.id === projectId ? { ...x, todos: [...(x.todos || []), t] } : x));
+        } catch (e: any) { alert(e.message); }
     };
-
     const toggleTodo = async (projectId: string, todoId: string) => {
         try {
-            const updated = await projectsAPI.toggleTodo(projectId, todoId);
-            setProjects(projects.map(p =>
-                p.id === projectId ? {
-                    ...p,
-                    todos: p.todos.map((t: any) => t.id === todoId ? updated : t)
-                } : p
-            ));
-        } catch (error: any) {
-            alert(error.message || 'Errore nell\'aggiornamento del todo');
-        }
+            const u = await projectsAPI.toggleTodo(projectId, todoId);
+            setProjects(p => p.map(x => x.id === projectId
+                ? { ...x, todos: (x.todos || []).map((t: any) => t.id === todoId ? u : t) }
+                : x));
+        } catch (e: any) { alert(e.message); }
     };
-
     const deleteTodo = async (projectId: string, todoId: string) => {
         try {
             await projectsAPI.deleteTodo(projectId, todoId);
-            setProjects(projects.map(p =>
-                p.id === projectId ? {
-                    ...p,
-                    todos: p.todos.filter((t: any) => t.id !== todoId)
-                } : p
-            ));
-        } catch (error: any) {
-            alert(error.message || 'Errore nell\'eliminazione del todo');
-        }
+            setProjects(p => p.map(x => x.id === projectId
+                ? { ...x, todos: (x.todos || []).filter((t: any) => t.id !== todoId) }
+                : x));
+        } catch (e: any) { alert(e.message); }
     };
 
-    // Contratti
-    const addContract = async (contract: any) => {
+    const addContract = async (data: any) => {
         try {
-            const newContract = await contractsAPI.create(contract);
-            setContracts([...contracts, newContract]);
-            setIsModalOpen(false);
-        } catch (error: any) {
-            alert(error.message || 'Errore nella creazione del contratto');
-        }
+            const created = await contractsAPI.create(data);
+            setContracts(c => [...c, created]);
+            setModal(null);
+        } catch (e: any) { alert(e.message); }
     };
-
-    const updateContractStatus = async (contractId: string, status: string) => {
+    const updateContractStatus = async (id: string, status: string) => {
         try {
-            const updated = await contractsAPI.updateStatus(contractId, status);
-            setContracts(contracts.map(c => c.id === contractId ? updated : c));
-        } catch (error: any) {
-            alert(error.message || 'Errore nell\'aggiornamento dello stato');
-        }
+            const u = await contractsAPI.updateStatus(id, status);
+            setContracts(c => c.map(x => x.id === id ? u : x));
+        } catch (e: any) { alert(e.message); }
+    };
+    const deleteContract = async (id: string) => {
+        if (!window.confirm('Eliminare il documento?')) return;
+        try { await contractsAPI.delete(id); setContracts(c => c.filter(x => x.id !== id)); }
+        catch (e: any) { alert(e.message); }
     };
 
-    const deleteContract = async (contractId: string) => {
-        if (!window.confirm('Sei sicuro di voler eliminare questo documento?')) {
-            return;
-        }
-        try {
-            await contractsAPI.delete(contractId);
-            setContracts(contracts.filter(c => c.id !== contractId));
-        } catch (error: any) {
-            alert(error.message || 'Errore nell\'eliminazione del contratto');
-        }
+    const getClientName = (id: string) => clients.find(c => c.id === id)?.name || 'N/A';
+    const getProjectName = (id: string) => projects.find(p => p.id === id)?.name || 'N/A';
+
+    const openNotice = (title: string, message = 'Azione disponibile. La sezione è stata collegata all’interfaccia.') => {
+        setModal(<NoticePanel title={title} message={message} onClose={() => setModal(null)} />);
     };
 
-    // --- Funzioni Modale ---
-    const openModal = (type: string) => {
-        let content;
-        switch (type) {
-            case 'client':
-                content = <AddClientForm onSubmit={addClient} />;
-                break;
-            case 'project':
-                content = <AddProjectForm clients={clients} onSubmit={addProject} />;
-                break;
-            case 'contract':
-                content = <AddContractForm clients={clients} projects={projects} onSubmit={addContract} />;
-                break;
-            default:
-                content = null;
-        }
-        setModalContent(content);
-        setIsModalOpen(true);
-    };
+    useEffect(() => {
+        const onNotice = (e: Event) => {
+            const detail = (e as CustomEvent<{ title?: string; message?: string }>).detail;
+            openNotice(detail?.title || 'Azione', detail?.message);
+        };
+        window.addEventListener('app:notice', onNotice);
+        return () => window.removeEventListener('app:notice', onNotice);
+    }, []);
 
-    // --- Funzioni di Utility ---
-    const getClientName = (clientId: string) => clients.find(c => c.id === clientId)?.name || 'N/A';
-    const getProjectName = (projectId: string) => projects.find(p => p.id === projectId)?.name || 'N/A';
+    const title = useMemo(() => ({
+        dashboard:    'Dashboard',
+        clienti:      'Gestione Clienti',
+        progetti:     'Gestione Progetti',
+        contabilita:  'Contabilità',
+        calendario:   'Calendario',
+        inbox:        'Inbox',
+        reports:      'Report',
+        notifiche:    'Notifiche',
+        help:         'Aiuto',
+        settings:     'Impostazioni',
+    } as Record<string, string>)[activeView] || 'Gestionale', [activeView]);
 
-    // Mostra login se non autenticato
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="text-xl">Caricamento...</div>
-            </div>
+            <ThemedShell>
+                <div className="h-screen flex items-center justify-center text-ink-muted">
+                    Caricamento…
+                </div>
+            </ThemedShell>
         );
     }
 
@@ -277,692 +248,491 @@ export default function App() {
         return <Login onLoginSuccess={handleLoginSuccess} />;
     }
 
-    // --- Render ---
     return (
-        <div className="flex h-screen bg-gray-100 font-sans">
-            {/* Sidebar (Desktop) */}
-            <Sidebar activeView={activeView} setActiveView={setActiveView} user={user} onLogout={handleLogout} className="hidden md:flex" />
-
-            {/* Mobile Sidebar Toggle */}
-            <div className="md:hidden p-4 bg-white shadow-md">
-                <button onClick={() => setIsSidebarOpen(true)}>
-                    <Menu className="w-6 h-6" />
-                </button>
-            </div>
-
-            {/* Mobile Sidebar (Overlay) */}
-            {isSidebarOpen && (
-                <div className="fixed inset-0 z-30 flex md:hidden">
-                    <div className="fixed inset-0 bg-black/30" onClick={() => setIsSidebarOpen(false)}></div>
-                    <div className="relative z-40 w-64 bg-gray-800 h-full">
-                        <Sidebar activeView={activeView} setActiveView={setActiveView} user={user} onLogout={handleLogout} onNavigate={() => setIsSidebarOpen(false)} />
-                    </div>
-                </div>
+        <AppShell
+            user={user}
+            onLogout={handleLogout}
+            activeView={activeView}
+            setActiveView={setActiveView}
+            projects={projects}
+            activeProjectId={activeProjectId}
+            setActiveProjectId={setActiveProjectId}
+            onAddProject={() => setModal(<AddProjectForm clients={clients} onSubmit={addProject} />)}
+            onQuickAction={openNotice}
+            title={title}
+        >
+            {activeView === 'dashboard' && (
+                <DashboardView activeProjectId={activeProjectId} currentUser={user} />
+            )}
+            {activeView === 'clienti' && (
+                <ClientiView
+                    clients={clients}
+                    onUpdateStatus={updateClientStatus}
+                    onDelete={deleteClient}
+                    onOpenAdd={() => setModal(<AddClientForm onSubmit={addClient} />)}
+                />
+            )}
+            {activeView === 'progetti' && (
+                <ProgettiView
+                    projects={projects}
+                    onUpdateStatus={updateProjectStatus}
+                    onAddTodo={addTodo}
+                    onToggleTodo={toggleTodo}
+                    onDeleteTodo={deleteTodo}
+                    onDelete={deleteProject}
+                    onOpenAdd={() => setModal(<AddProjectForm clients={clients} onSubmit={addProject} />)}
+                    getClientName={getClientName}
+                />
+            )}
+            {activeView === 'contabilita' && (
+                <ContabilitaView
+                    contracts={contracts}
+                    onUpdateStatus={updateContractStatus}
+                    onDelete={deleteContract}
+                    onOpenAdd={() => setModal(<AddContractForm clients={clients} projects={projects} onSubmit={addContract} />)}
+                    getClientName={getClientName}
+                    getProjectName={getProjectName}
+                />
+            )}
+            {activeView === 'calendario' && <Calendar currentUser={user} />}
+            {activeView === 'inbox' && (
+                <UtilityView
+                    icon={Inbox}
+                    title="Inbox"
+                    subtitle="Messaggi, richieste e follow-up rapidi."
+                    primaryLabel="Apri chat dashboard"
+                    onPrimary={() => setActiveView('dashboard')}
+                    cards={[
+                        ['3 richieste', 'Da trasformare in task o note progetto.'],
+                        ['Follow-up clienti', 'Promemoria collegati alla pipeline commerciale.'],
+                        ['Messaggi team', 'Accesso rapido alla chat operativa.'],
+                    ]}
+                />
+            )}
+            {activeView === 'reports' && (
+                <UtilityView
+                    icon={BarChart3}
+                    title="Reports"
+                    subtitle="Riepilogo operativo con collegamenti alle sezioni principali."
+                    primaryLabel="Vai alla contabilità"
+                    onPrimary={() => setActiveView('contabilita')}
+                    cards={[
+                        [`${clients.length} clienti`, 'Consulta anagrafiche e stato commerciale.'],
+                        [`${projects.length} progetti`, 'Apri backlog, todo e stato progetto.'],
+                        [`${contracts.length} documenti`, 'Controlla incassato e documenti aperti.'],
+                    ]}
+                />
+            )}
+            {activeView === 'notifiche' && (
+                <UtilityView
+                    icon={Bell}
+                    title="Notifiche"
+                    subtitle="Centro aggiornamenti per attività recenti e reminder."
+                    primaryLabel="Torna alla dashboard"
+                    onPrimary={() => setActiveView('dashboard')}
+                    cards={[
+                        ['Task aggiornati', 'I cambi di colonna compariranno qui.'],
+                        ['Documenti', 'Fatture e contratti avranno reminder dedicati.'],
+                        ['Calendario', 'Eventi e RSVP saranno raccolti in questa vista.'],
+                    ]}
+                />
+            )}
+            {activeView === 'help' && (
+                <UtilityView
+                    icon={HelpCircle}
+                    title="Help"
+                    subtitle="Guida rapida alle aree principali del gestionale."
+                    primaryLabel="Crea un progetto"
+                    onPrimary={() => setModal(<AddProjectForm clients={clients} onSubmit={addProject} />)}
+                    cards={[
+                        ['Dashboard', 'Kanban, chat, calendario e attività in un solo posto.'],
+                        ['Clienti', 'Crea o aggiorna anagrafiche commerciali.'],
+                        ['Progetti', 'Collega ogni progetto al cliente corretto.'],
+                    ]}
+                />
+            )}
+            {activeView === 'settings' && (
+                <UtilityView
+                    icon={Settings}
+                    title="Impostazioni"
+                    subtitle="Preferenze e scorciatoie operative."
+                    primaryLabel="Cambia tema"
+                    onPrimary={() => openNotice('Tema', 'Usa il pulsante sole/luna nella barra laterale per cambiare tema.')}
+                    cards={[
+                        ['Account', user?.name || 'Utente corrente'],
+                        ['Workspace', 'GESTIONALE JEINS'],
+                        ['Preferenze', 'Tema, notifiche e scorciatoie.'],
+                    ]}
+                />
+            )}
+            {!['dashboard', 'clienti', 'progetti', 'contabilita', 'calendario'].includes(activeView) && (
+                null
             )}
 
-            {/* Main Content */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-                {/* Header */}
-                <Header onAddNewClick={openModal} activeView={activeView} />
-
-                {/* Content Area */}
-                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 md:p-6 lg:p-8">
-                    <RenderContent
-                        activeView={activeView}
-                        user={user}
-                        clients={clients}
-                        projects={projects}
-                        contracts={contracts}
-                        onUpdateClientStatus={updateClientStatus}
-                        onUpdateProjectStatus={updateProjectStatus}
-                        onUpdateContractStatus={updateContractStatus}
-                        onAddTodo={addTodoToProject}
-                        onToggleTodo={toggleTodo}
-                        onDeleteTodo={deleteTodo}
-                        onDeleteClient={deleteClient}
-                        onDeleteProject={deleteProject}
-                        onDeleteContract={deleteContract}
-                        getClientName={getClientName}
-                        getProjectName={getProjectName}
-                    />
-                </main>
-            </div>
-
-            {/* Modale */}
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
-                {modalContent}
+            <Modal isOpen={!!modal} onClose={() => setModal(null)}>
+                {modal}
             </Modal>
+        </AppShell>
+    );
+}
+
+function ThemedShell({ children }: { children: ReactNode }) {
+    return <div className="bg-surface text-ink">{children}</div>;
+}
+
+function NoticePanel({ title, message, onClose }: { title: string; message: string; onClose: () => void }) {
+    return (
+        <div className="space-y-5">
+            <div className="flex items-start gap-3">
+                <div className="mt-0.5 w-10 h-10 rounded-2xl bg-grad-violet shadow-glow-violet flex items-center justify-center text-white">
+                    <Bell className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-brand-300 font-semibold">
+                        Notifica
+                    </p>
+                    <h3 className="text-lg font-semibold text-ink mt-1">{title}</h3>
+                    <p className="text-sm text-ink-muted mt-1 leading-relaxed">{message}</p>
+                </div>
+            </div>
+            <div className="flex justify-end">
+                <button className="btn-primary px-4 py-2" onClick={onClose}>Ho capito</button>
+            </div>
         </div>
     );
 }
 
-// --- Componenti UI ---
-
-function Sidebar({ activeView, setActiveView, user, onLogout, className = '', onNavigate }: any) {
-    const navItems = [
-        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-        { id: 'clienti', label: 'Clienti', icon: Users },
-        { id: 'progetti', label: 'Progetti', icon: Briefcase },
-        { id: 'contabilita', label: 'Contabilità', icon: FileText },
-        { id: 'calendario', label: 'Calendario', icon: Calendar },
-    ];
-
-    const handleClick = (view: string) => {
-        setActiveView(view);
-        if (onNavigate) onNavigate();
-    };
-
+function UtilityView({
+    icon: Icon, title, subtitle, primaryLabel, onPrimary, cards,
+}: {
+    icon: any;
+    title: string;
+    subtitle: string;
+    primaryLabel: string;
+    onPrimary: () => void;
+    cards: [string, string][];
+}) {
     return (
-        <nav className={`w-64 bg-gray-800 text-white flex-shrink-0 flex flex-col ${className}`}>
-            <div className="h-16 flex items-center justify-center px-4 bg-gray-900 shadow-md">
-                <h1 className="text-xl font-bold text-white">Gestionale</h1>
+        <div className="card p-6 animate-fade-in">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div className="flex items-start gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-grad-violet shadow-glow-violet flex items-center justify-center text-white">
+                        <Icon className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h2 className="text-lg font-semibold text-ink">{title}</h2>
+                        <p className="text-sm text-ink-muted">{subtitle}</p>
+                    </div>
+                </div>
+                <button className="btn-primary" onClick={onPrimary}>
+                    {primaryLabel}
+                    <ArrowRight className="w-4 h-4" />
+                </button>
             </div>
-            <div className="flex-1 overflow-y-auto">
-                {navItems.map(item => (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6">
+                {cards.map(([heading, body]) => (
                     <button
-                        key={item.id}
-                        onClick={() => handleClick(item.id)}
-                        className={`flex items-center w-full px-6 py-4 text-left transition-colors duration-200 ${activeView === item.id
-                            ? 'bg-indigo-600 text-white'
-                            : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                            }`}
+                        key={heading}
+                        type="button"
+                        onClick={() => window.dispatchEvent(new CustomEvent('app:notice', {
+                            detail: { title: heading, message: body },
+                        }))}
+                        className="text-left card-inset p-4 hover:border-line-strong hover:bg-surface-inset/80 transition-colors active:scale-[0.99]"
                     >
-                        <item.icon className="w-5 h-5 mr-3" />
-                        <span>{item.label}</span>
+                        <h3 className="text-sm font-semibold text-ink">{heading}</h3>
+                        <p className="text-xs text-ink-subtle mt-1 leading-relaxed">{body}</p>
                     </button>
                 ))}
             </div>
-            <div className="border-t border-gray-700 p-4">
-                <div className="flex items-center mb-3 text-gray-300">
-                    <User className="w-5 h-5 mr-2" />
-                    <div className="flex-1">
-                        <div className="text-sm font-medium">{user?.name}</div>
-                        <div className="text-xs text-gray-400">{user?.email}</div>
-                    </div>
-                </div>
-                <button
-                    onClick={onLogout}
-                    className="flex items-center w-full px-4 py-2 text-left text-gray-300 hover:bg-gray-700 hover:text-white rounded transition-colors duration-200"
-                >
-                    <LogOut className="w-4 h-4 mr-2" />
-                    <span className="text-sm">Esci</span>
-                </button>
-            </div>
-        </nav>
+        </div>
     );
 }
 
-function Header({ onAddNewClick, activeView }: any) {
-    const getTitle = () => {
-        switch (activeView) {
-            case 'dashboard': return 'Dashboard';
-            case 'clienti': return 'Gestione Clienti';
-            case 'progetti': return 'Gestione Progetti';
-            case 'contabilita': return 'Gestione Contabilità';
-            case 'calendario': return 'Calendario Eventi';
-            default: return 'Gestionale';
-        }
-    };
-
-    const getButtonLabel = () => {
-        switch (activeView) {
-            case 'clienti': return 'Nuovo Cliente';
-            case 'progetti': return 'Nuovo Progetto';
-            case 'contabilita': return 'Nuovo Documento';
-            default: return null;
-        }
-    };
-
-    const buttonLabel = getButtonLabel();
-    const modalType = activeView.slice(0, -1);
-
-    return (
-        <header className="h-16 bg-white shadow-md flex-shrink-0">
-            <div className="flex items-center justify-between h-full px-4 md:px-6">
-                <h2 className="text-2xl font-semibold text-gray-800">{getTitle()}</h2>
-                {buttonLabel && (
-                    <button
-                        onClick={() => onAddNewClick(modalType)}
-                        className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-200"
-                    >
-                        <Plus className="w-5 h-5 mr-2" />
-                        <span>{buttonLabel}</span>
-                    </button>
-                )}
-            </div>
-        </header>
-    );
-}
-
-function RenderContent({ activeView, user, ...props }: any) {
-    switch (activeView) {
-        case 'dashboard':
-            return <Dashboard {...props} />;
-        case 'clienti':
-            return <ClientiList {...props} />;
-        case 'progetti':
-            return <ProgettiList {...props} />;
-        case 'contabilita':
-            return <ContabilitaList {...props} />;
-        case 'calendario':
-            return <Calendar currentUser={user || null} />;
-        default:
-            return <div>Seleziona una vista</div>;
-    }
-}
-
-function Modal({ isOpen, onClose, children }: any) {
+function Modal({ isOpen, onClose, children }: { isOpen: boolean; onClose: () => void; children: ReactNode }) {
     if (!isOpen) return null;
-
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="fixed inset-0 bg-black/50" onClick={onClose}></div>
-            <div className="relative bg-white rounded-lg shadow-xl w-full max-w-lg m-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative card max-w-lg w-full max-h-[90vh] overflow-y-auto animate-fade-in">
                 <button
                     onClick={onClose}
-                    className="absolute top-3 right-3 text-gray-400 hover:text-gray-600"
+                    className="absolute top-3 right-3 icon-btn z-10"
+                    aria-label="Chiudi"
                 >
-                    <X className="w-6 h-6" />
+                    <X className="w-4 h-4" />
                 </button>
-                <div className="p-6">
-                    {children}
-                </div>
+                <div className="p-6">{children}</div>
             </div>
         </div>
     );
 }
 
-// --- Componenti di Pagina ---
+// --- Form Modali ---
 
-function Dashboard({ clients, projects, contracts }: any) {
-    const activeProjects = projects.filter((p: any) => p.status === 'In Corso').length;
-    const newProspects = clients.filter((c: any) => c.status === 'Prospect').length;
-    const dueInvoices = contracts.filter((c: any) => c.type === 'Fattura' && c.status === 'Inviata').length;
-
-    return (
-        <div>
-            <h3 className="text-xl font-semibold mb-4">Panoramica</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <StatCard title="Progetti Attivi" value={activeProjects} icon={Briefcase} color="blue" />
-                <StatCard title="Nuovi Prospect" value={newProspects} icon={Users} color="green" />
-                <StatCard title="Fatture da Incassare" value={dueInvoices} icon={FileText} color="orange" />
-            </div>
-        </div>
-    );
-}
-
-function StatCard({ title, value, icon: Icon, color }: any) {
-    const colors: any = {
-        blue: 'bg-blue-100 text-blue-600',
-        green: 'bg-green-100 text-green-600',
-        orange: 'bg-orange-100 text-orange-600',
-    };
-    return (
-        <div className="bg-white p-6 rounded-lg shadow-md flex items-center">
-            <div className={`p-3 rounded-full ${colors[color] || 'bg-gray-100 text-gray-600'} mr-4`}>
-                <Icon className="w-6 h-6" />
-            </div>
-            <div>
-                <div className="text-gray-500 text-sm">{title}</div>
-                <div className="text-3xl font-bold text-gray-900">{value}</div>
-            </div>
-        </div>
-    );
-}
-
-function ClientiList({ clients, onUpdateClientStatus, onDeleteClient }: any) {
-    return (
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <table className="w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                    <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Azienda</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contatto</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email / Telefono</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Area</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stato</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Azioni</th>
-                    </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                    {clients.map((client: any) => (
-                        <tr key={client.id} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm font-medium text-gray-900">{client.name}</div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-900">{client.contactPerson}</div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-600">{client.email}</div>
-                                <div className="text-sm text-gray-500">{client.phone}</div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                                    {client.area}
-                                </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <StatusSelector
-                                    currentStatus={client.status}
-                                    options={CLIENT_STATUS_OPTIONS}
-                                    onChange={(newStatus: string) => onUpdateClientStatus(client.id, newStatus)}
-                                />
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <button onClick={() => onDeleteClient(client.id)} className="text-red-500 hover:text-red-700">
-                                    <Trash2 className="w-5 h-5" />
-                                </button>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    );
-}
-
-function ProgettiList({ projects, onUpdateProjectStatus, onAddTodo, onToggleTodo, onDeleteTodo, onDeleteProject, getClientName }: any) {
-    return (
-        <div className="space-y-6">
-            {projects.map((project: any) => (
-                <ProjectCard
-                    key={project.id}
-                    project={project}
-                    clientName={getClientName(project.clientId)}
-                    onUpdateProjectStatus={onUpdateProjectStatus}
-                    onAddTodo={onAddTodo}
-                    onToggleTodo={onToggleTodo}
-                    onDeleteTodo={onDeleteTodo}
-                    onDeleteProject={onDeleteProject}
-                />
-            ))}
-        </div>
-    );
-}
-
-function ProjectCard({ project, clientName, onUpdateProjectStatus, onAddTodo, onToggleTodo, onDeleteTodo, onDeleteProject }: any) {
-    const [newTodoText, setNewTodoText] = useState('');
-    const [newTodoPriority, setNewTodoPriority] = useState('Media');
-    const [isExpanded, setIsExpanded] = useState(true);
-
-    const handleAddTodo = (e: any) => {
-        e.preventDefault();
-        if (newTodoText.trim()) {
-            onAddTodo(project.id, newTodoText, newTodoPriority);
-            setNewTodoText('');
-            setNewTodoPriority('Media');
-        }
-    };
-
-    return (
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-                <div>
-                    <div className="flex items-center space-x-2">
-                        <button onClick={() => setIsExpanded(!isExpanded)} className="text-gray-600 hover:text-gray-900">
-                            {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
-                        </button>
-                        <h3 className="text-lg font-semibold text-gray-900">{project.name}</h3>
-                        <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                            {clientName}
-                        </span>
-                        <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
-                            {project.area}
-                        </span>
-                    </div>
-                </div>
-                <div className="flex items-center space-x-4">
-                    <StatusSelector
-                        currentStatus={project.status}
-                        options={PROJECT_STATUS_OPTIONS}
-                        onChange={(newStatus: string) => onUpdateProjectStatus(project.id, newStatus)}
-                    />
-                    <button onClick={() => onDeleteProject(project.id)} className="text-red-500 hover:text-red-700">
-                        <Trash2 className="w-5 h-5" />
-                    </button>
-                </div>
-            </div>
-
-            {isExpanded && (
-                <div className="p-4">
-                    <h4 className="text-sm font-medium text-gray-500 mb-2">To-do List</h4>
-                    <div className="space-y-2 mb-4">
-                        {project.todos && project.todos.length > 0 ? project.todos.map((todo: any) => (
-                            <TodoItem
-                                key={todo.id}
-                                todo={todo}
-                                onToggle={() => onToggleTodo(project.id, todo.id)}
-                                onDelete={() => onDeleteTodo(project.id, todo.id)}
-                            />
-                        )) : (
-                            <div className="text-sm text-gray-400 italic">Nessun task ancora aggiunto.</div>
-                        )}
-                    </div>
-
-                    <form onSubmit={handleAddTodo} className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 space-y-2 sm:space-y-0">
-                        <input
-                            type="text"
-                            value={newTodoText}
-                            onChange={(e) => setNewTodoText(e.target.value)}
-                            placeholder="Nuovo task..."
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                        />
-                        <select
-                            value={newTodoPriority}
-                            onChange={(e) => setNewTodoPriority(e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                        >
-                            {TODO_PRIORITY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                        </select>
-                        <button
-                            type="submit"
-                            className="px-4 py-2 bg-indigo-600 text-white rounded-md shadow-sm hover:bg-indigo-700 transition-colors duration-200"
-                        >
-                            Aggiungi
-                        </button>
-                    </form>
-                </div>
-            )}
-        </div>
-    );
-}
-
-function TodoItem({ todo, onToggle, onDelete }: any) {
-    const priorityColors: any = {
-        'Bassa': 'text-green-500',
-        'Media': 'text-yellow-500',
-        'Alta': 'text-red-500',
-    };
-
-    return (
-        <div className="flex items-center justify-between p-2 rounded-md hover:bg-gray-50">
-            <div className="flex items-center space-x-3">
-                <button onClick={onToggle}>
-                    {todo.completed
-                        ? <CheckCircle className="w-5 h-5 text-green-500" />
-                        : <Circle className="w-5 h-5 text-gray-400" />
-                    }
-                </button>
-                <span className={`${todo.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
-                    {todo.text}
-                </span>
-            </div>
-            <div className="flex items-center space-x-2">
-                <Flag className={`w-4 h-4 ${priorityColors[todo.priority]}`} />
-                <button onClick={onDelete} className="text-gray-400 hover:text-red-500">
-                    <Trash2 className="w-4 h-4" />
-                </button>
-            </div>
-        </div>
-    );
-}
-
-function ContabilitaList({ contracts, onUpdateContractStatus, onDeleteContract, getClientName, getProjectName }: any) {
-    return (
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <table className="w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                    <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Progetto</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Importo</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stato</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Azioni</th>
-                    </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                    {contracts.map((contract: any) => (
-                        <tr key={contract.id} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm font-medium text-gray-900">{contract.type}</div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-800">{getClientName(contract.clientId)}</div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-600">{getProjectName(contract.projectId)}</div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-600">{contract.date}</div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-900">€ {Number(contract.amount).toFixed(2)}</div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <StatusSelector
-                                    currentStatus={contract.status}
-                                    options={CONTRACT_STATUS_OPTIONS}
-                                    onChange={(newStatus: string) => onUpdateContractStatus(contract.id, newStatus)}
-                                />
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <button onClick={() => onDeleteContract(contract.id)} className="text-red-500 hover:text-red-700">
-                                    <Trash2 className="w-5 h-5" />
-                                </button>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    );
-}
-
-// --- Componenti Form (per Modale) ---
-
-function AddClientForm({ onSubmit }: any) {
-    const [formData, setFormData] = useState({
-        name: '',
-        contactPerson: '',
-        email: '',
-        phone: '',
-        status: 'Prospect',
-        area: 'Marketing',
+function AddClientForm({ onSubmit }: { onSubmit: (data: any) => void }) {
+    const [data, setData] = useState({
+        name: '', contactPerson: '', email: '', phone: '',
+        status: 'Prospect', area: 'Marketing',
     });
-
-    const handleChange = (e: any) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleSubmit = (e: any) => {
+    const submit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (formData.name && formData.email) {
-            onSubmit(formData);
-        } else {
-            alert('Nome azienda e email sono obbligatori.');
-        }
+        if (!data.name || !data.email) { alert('Nome e email obbligatori.'); return; }
+        onSubmit(data);
     };
-
     return (
-        <form onSubmit={handleSubmit} className="space-y-4">
-            <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">Aggiungi Nuovo Cliente</h3>
-            <FormInput name="name" label="Nome Azienda" value={formData.name} onChange={handleChange} required />
-            <FormInput name="contactPerson" label="Referente" value={formData.contactPerson} onChange={handleChange} />
-            <FormInput name="email" label="Email" type="email" value={formData.email} onChange={handleChange} required />
-            <FormInput name="phone" label="Telefono" value={formData.phone} onChange={handleChange} />
-            <FormSelect name="area" label="Area di Competenza" value={formData.area} onChange={handleChange} options={AREA_OPTIONS} />
-            <FormSelect name="status" label="Stato Iniziale" value={formData.status} onChange={handleChange} options={CLIENT_STATUS_OPTIONS} />
-            <div className="pt-4 flex justify-end">
-                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-200">
-                    Salva Cliente
-                </button>
+        <form onSubmit={submit} className="space-y-4">
+            <h3 className="text-lg font-semibold text-ink">Nuovo Cliente</h3>
+            <FormField label="Azienda" required value={data.name} onChange={v => setData({ ...data, name: v })} />
+            <FormField label="Referente"        value={data.contactPerson} onChange={v => setData({ ...data, contactPerson: v })} />
+            <FormField label="Email" type="email" required value={data.email} onChange={v => setData({ ...data, email: v })} />
+            <FormField label="Telefono"          value={data.phone} onChange={v => setData({ ...data, phone: v })} />
+            <FormSelect label="Area" value={data.area} options={AREA_OPTIONS} onChange={v => setData({ ...data, area: v })} />
+            <FormSelect label="Stato" value={data.status} options={CLIENT_STATUS_OPTIONS} onChange={v => setData({ ...data, status: v })} />
+            <div className="flex justify-end pt-2">
+                <button type="submit" className="btn-primary">Salva Cliente</button>
             </div>
         </form>
     );
 }
 
-function AddProjectForm({ clients, onSubmit }: any) {
-    const [formData, setFormData] = useState({
-        name: '',
-        clientId: clients[0]?.id || '',
-        area: 'IT',
-        status: 'Pianificato',
+function AddProjectForm({ clients, onSubmit }: { clients: Client[]; onSubmit: (data: any) => void }) {
+    const [data, setData] = useState({
+        name: '', area: 'IT', status: 'Pianificato',
     });
+    const [clientName, setClientName] = useState('');
+    const [clientId, setClientId] = useState<string>('');
 
-    const handleChange = (e: any) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleSubmit = (e: any) => {
+    const submit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (formData.name && formData.clientId) {
-            onSubmit(formData);
-        } else {
+        if (!data.name.trim() || !clientName.trim()) {
             alert('Nome progetto e cliente sono obbligatori.');
+            return;
         }
+        onSubmit({ ...data, clientName: clientName.trim(), clientId: clientId || undefined });
     };
-
     return (
-        <form onSubmit={handleSubmit} className="space-y-4">
-            <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">Aggiungi Nuovo Progetto</h3>
-            <FormInput name="name" label="Nome Progetto" value={formData.name} onChange={handleChange} required />
-            <FormSelect name="clientId" label="Cliente" value={formData.clientId} onChange={handleChange} options={clients.map((c: any) => ({ value: c.id, label: c.name }))} />
-            <FormSelect name="area" label="Area di Competenza" value={formData.area} onChange={handleChange} options={AREA_OPTIONS} />
-            <FormSelect name="status" label="Stato Iniziale" value={formData.status} onChange={handleChange} options={PROJECT_STATUS_OPTIONS} />
-            <div className="pt-4 flex justify-end">
-                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-200">
-                    Salva Progetto
-                </button>
+        <form onSubmit={submit} className="space-y-4">
+            <h3 className="text-lg font-semibold text-ink">Nuovo Progetto</h3>
+            <FormField label="Nome" required value={data.name} onChange={v => setData({ ...data, name: v })} />
+            <ClientCombobox
+                clients={clients}
+                value={clientName}
+                onChange={(name, id) => { setClientName(name); setClientId(id || ''); }}
+            />
+            <FormSelect label="Area" value={data.area} options={AREA_OPTIONS} onChange={v => setData({ ...data, area: v })} />
+            <FormSelect label="Stato" value={data.status} options={PROJECT_STATUS_OPTIONS} onChange={v => setData({ ...data, status: v })} />
+            <div className="flex justify-end pt-2">
+                <button type="submit" className="btn-primary">Salva Progetto</button>
             </div>
         </form>
     );
 }
 
-function AddContractForm({ clients, projects, onSubmit }: any) {
-    const [formData, setFormData] = useState({
-        type: 'Contratto',
-        clientId: clients[0]?.id || '',
-        projectId: projects[0]?.id || '',
-        amount: 0,
-        status: 'Bozza',
-        date: new Date().toISOString().split('T')[0],
-    });
+function ClientCombobox({
+    clients, value, onChange,
+}: {
+    clients: Client[];
+    value: string;
+    onChange: (name: string, matchedId: string | null) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const [highlight, setHighlight] = useState(0);
+    const wrapRef = useRef<HTMLDivElement>(null);
 
-    const handleChange = (e: any) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
+    const norm = (s: string) => s.trim().toLowerCase();
 
-    const availableProjects = useMemo(() => {
-        return projects.filter((p: any) => p.clientId === formData.clientId);
-    }, [formData.clientId, projects]);
+    const filtered = useMemo(() => {
+        const q = norm(value);
+        if (!q) return clients;
+        return clients.filter(c => norm(c.name).includes(q));
+    }, [clients, value]);
+
+    const exactMatch = useMemo(
+        () => clients.find(c => norm(c.name) === norm(value)) || null,
+        [clients, value]
+    );
 
     useEffect(() => {
-        if (availableProjects.length > 0 && !availableProjects.find((p: any) => p.id === formData.projectId)) {
-            setFormData(prev => ({ ...prev, projectId: availableProjects[0].id }));
-        } else if (availableProjects.length === 0) {
-            setFormData(prev => ({ ...prev, projectId: '' }));
-        }
-    }, [formData.clientId, availableProjects, formData.projectId]);
+        const onDown = (e: MouseEvent) => {
+            if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+                setOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', onDown);
+        return () => document.removeEventListener('mousedown', onDown);
+    }, []);
 
-    const handleSubmit = (e: any) => {
-        e.preventDefault();
-        if (formData.clientId && formData.amount > 0) {
-            onSubmit(formData);
-        } else {
-            alert('Cliente e importo sono obbligatori.');
+    useEffect(() => {
+        setHighlight(0);
+    }, [value]);
+
+    const pickClient = (c: Client) => {
+        onChange(c.name, c.id);
+        setOpen(false);
+    };
+
+    const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setOpen(true);
+            setHighlight(h => Math.min(h + 1, Math.max(filtered.length - 1, 0)));
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setHighlight(h => Math.max(h - 1, 0));
+        } else if (e.key === 'Enter') {
+            if (open && filtered[highlight]) {
+                e.preventDefault();
+                pickClient(filtered[highlight]);
+            }
+        } else if (e.key === 'Escape') {
+            setOpen(false);
         }
     };
 
+    const showCreateRow = !!value.trim() && !exactMatch;
+
     return (
-        <form onSubmit={handleSubmit} className="space-y-4">
-            <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">Aggiungi Documento</h3>
-            <FormSelect name="type" label="Tipo" value={formData.type} onChange={handleChange} options={CONTRACT_TYPE_OPTIONS} />
-            <FormSelect name="clientId" label="Cliente" value={formData.clientId} onChange={handleChange} options={clients.map((c: any) => ({ value: c.id, label: c.name }))} />
-            <FormSelect name="projectId" label="Progetto (opzionale)" value={formData.projectId} onChange={handleChange} options={availableProjects.map((p: any) => ({ value: p.id, label: p.name }))} />
-            <FormInput name="amount" label="Importo (€)" type="number" value={formData.amount} onChange={handleChange} required />
-            <FormInput name="date" label="Data" type="date" value={formData.date} onChange={handleChange} required />
-            <FormSelect name="status" label="Stato Iniziale" value={formData.status} onChange={handleChange} options={CONTRACT_STATUS_OPTIONS} />
-            <div className="pt-4 flex justify-end">
-                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-200">
-                    Salva Documento
-                </button>
+        <div>
+            <label className="block text-xs font-medium text-ink-muted mb-1">
+                Cliente<span className="text-rose-400 ml-0.5">*</span>
+            </label>
+            <div className="relative" ref={wrapRef}>
+                <input
+                    type="text"
+                    value={value}
+                    onChange={(e) => { onChange(e.target.value, null); setOpen(true); }}
+                    onFocus={() => setOpen(true)}
+                    onKeyDown={handleKey}
+                    placeholder="Scrivi il nome o scegli un cliente esistente…"
+                    autoComplete="off"
+                    className="input"
+                />
+                {open && (filtered.length > 0 || showCreateRow) && (
+                    <ul className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-line/60 bg-surface-inset shadow-lg">
+                        {filtered.map((c, i) => (
+                            <li
+                                key={c.id}
+                                onMouseDown={(e) => { e.preventDefault(); pickClient(c); }}
+                                onMouseEnter={() => setHighlight(i)}
+                                className={`px-3 py-1.5 text-sm cursor-pointer truncate ${
+                                    i === highlight
+                                        ? 'bg-violet-500/15 text-ink'
+                                        : 'text-ink-muted'
+                                }`}
+                            >
+                                {c.name}
+                            </li>
+                        ))}
+                        {showCreateRow && (
+                            <li
+                                onMouseDown={(e) => e.preventDefault()}
+                                className="px-3 py-1.5 text-xs text-violet-300 border-t border-line/40 flex items-center gap-1.5 italic"
+                            >
+                                <Plus className="w-3 h-3" />
+                                <span>
+                                    Verrà creato un nuovo cliente:{' '}
+                                    <span className="font-medium not-italic text-ink">
+                                        "{value.trim()}"
+                                    </span>
+                                </span>
+                            </li>
+                        )}
+                    </ul>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function AddContractForm({
+    clients, projects, onSubmit,
+}: { clients: Client[]; projects: Project[]; onSubmit: (data: any) => void }) {
+    const [data, setData] = useState({
+        type: 'Contratto', clientId: clients[0]?.id || '',
+        projectId: '', amount: 0, status: 'Bozza',
+        date: new Date().toISOString().split('T')[0],
+    });
+    const availableProjects = useMemo(
+        () => projects.filter(p => p.clientId === data.clientId),
+        [projects, data.clientId]
+    );
+    useEffect(() => {
+        if (availableProjects.length && !availableProjects.find(p => p.id === data.projectId)) {
+            setData(d => ({ ...d, projectId: availableProjects[0].id }));
+        }
+    }, [data.clientId, availableProjects, data.projectId]);
+
+    const submit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!data.clientId || data.amount <= 0) { alert('Cliente e importo richiesti.'); return; }
+        onSubmit(data);
+    };
+    return (
+        <form onSubmit={submit} className="space-y-4">
+            <h3 className="text-lg font-semibold text-ink">Nuovo Documento</h3>
+            <FormSelect label="Tipo" value={data.type} options={CONTRACT_TYPE_OPTIONS} onChange={v => setData({ ...data, type: v })} />
+            <FormSelect
+                label="Cliente"
+                value={data.clientId}
+                options={clients.map(c => ({ value: c.id, label: c.name }))}
+                onChange={v => setData({ ...data, clientId: v })}
+            />
+            <FormSelect
+                label="Progetto"
+                value={data.projectId}
+                options={availableProjects.map(p => ({ value: p.id, label: p.name }))}
+                onChange={v => setData({ ...data, projectId: v })}
+            />
+            <FormField label="Importo (€)" type="number" required
+                       value={String(data.amount)}
+                       onChange={v => setData({ ...data, amount: Number(v) })} />
+            <FormField label="Data" type="date" required
+                       value={data.date} onChange={v => setData({ ...data, date: v })} />
+            <FormSelect label="Stato" value={data.status} options={CONTRACT_STATUS_OPTIONS} onChange={v => setData({ ...data, status: v })} />
+            <div className="flex justify-end pt-2">
+                <button type="submit" className="btn-primary">Salva Documento</button>
             </div>
         </form>
     );
 }
 
-// --- Componenti di Form Generici ---
-
-function FormInput({ label, name, type = 'text', value, onChange, required = false }: any) {
+function FormField({
+    label, value, onChange, type = 'text', required = false,
+}: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean }) {
     return (
         <div>
-            <label htmlFor={name} className="block text-sm font-medium text-gray-700">{label}</label>
+            <label className="block text-xs font-medium text-ink-muted mb-1">
+                {label}{required && <span className="text-rose-400 ml-0.5">*</span>}
+            </label>
             <input
-                type={type}
-                id={name}
-                name={name}
-                value={value}
-                onChange={onChange}
-                required={required}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                type={type} value={value} required={required}
+                onChange={(e) => onChange(e.target.value)}
+                className="input"
             />
         </div>
     );
 }
 
-function FormSelect({ label, name, value, onChange, options, required = false }: any) {
+function FormSelect({
+    label, value, options, onChange,
+}: {
+    label: string; value: string; onChange: (v: string) => void;
+    options: (string | { value: string; label: string })[];
+}) {
     return (
         <div>
-            <label htmlFor={name} className="block text-sm font-medium text-gray-700">{label}</label>
+            <label className="block text-xs font-medium text-ink-muted mb-1">{label}</label>
             <select
-                id={name}
-                name={name}
                 value={value}
-                onChange={onChange}
-                required={required}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                onChange={(e) => onChange(e.target.value)}
+                className="input appearance-none"
             >
-                {options.map((option: any) => (
-                    <option
-                        key={typeof option === 'object' ? option.value : option}
-                        value={typeof option === 'object' ? option.value : option}
-                    >
-                        {typeof option === 'object' ? option.label : option}
-                    </option>
-                ))}
+                {options.map(o => {
+                    const v = typeof o === 'string' ? o : o.value;
+                    const l = typeof o === 'string' ? o : o.label;
+                    return <option key={v} value={v}>{l}</option>;
+                })}
             </select>
         </div>
-    );
-}
-
-function StatusSelector({ currentStatus, options, onChange }: any) {
-    const statusColors: any = {
-        'Attivo': 'bg-green-100 text-green-800',
-        'In Corso': 'bg-green-100 text-green-800',
-        'Firmato': 'bg-green-100 text-green-800',
-        'Pagato': 'bg-green-100 text-green-800',
-        'In Negoziazione': 'bg-yellow-100 text-yellow-800',
-        'In Revisione': 'bg-yellow-100 text-yellow-800',
-        'Inviato': 'bg-yellow-100 text-yellow-800',
-        'Prospect': 'bg-blue-100 text-blue-800',
-        'Pianificato': 'bg-blue-100 text-blue-800',
-        'Bozza': 'bg-blue-100 text-blue-800',
-        'In Contatto': 'bg-indigo-100 text-indigo-800',
-        'Chiuso': 'bg-gray-100 text-gray-800',
-        'Completato': 'bg-gray-100 text-gray-800',
-        'Sospeso': 'bg-gray-100 text-gray-800',
-        'Perso': 'bg-red-100 text-red-800',
-        'Annullato': 'bg-red-100 text-red-800',
-    };
-
-    const colorClass = statusColors[currentStatus] || 'bg-gray-100 text-gray-800';
-
-    return (
-        <select
-            value={currentStatus}
-            onChange={(e) => onChange(e.target.value)}
-            className={`text-xs font-medium px-2.5 py-1 rounded-full border-none appearance-none ${colorClass} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500`}
-            onClick={(e) => e.stopPropagation()}
-        >
-            {options.map((option: string) => (
-                <option key={option} value={option}>{option}</option>
-            ))}
-        </select>
     );
 }

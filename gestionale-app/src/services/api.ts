@@ -182,6 +182,106 @@ export const eventsAPI = {
 // Users API
 export const usersAPI = {
     getAll: () => apiCall('/api/users'),
+    getMe: () => apiCall('/api/users/me'),
+    updateMe: (data: any) =>
+        apiCall('/api/users/me', { method: 'PATCH', body: JSON.stringify(data) }),
     getById: (id: string) => apiCall(`/api/users/${id}`),
+};
+
+// Tasks API (board / Kanban)
+export const tasksAPI = {
+    getAll: (filters: { projectId?: string; columnId?: string; sprintId?: string } = {}) => {
+        const params = new URLSearchParams();
+        Object.entries(filters).forEach(([k, v]) => v && params.append(k, v));
+        const q = params.toString();
+        return apiCall(`/api/tasks${q ? `?${q}` : ''}`);
+    },
+    getById: (id: string) => apiCall(`/api/tasks/${id}`),
+    create: (task: any) =>
+        apiCall('/api/tasks', { method: 'POST', body: JSON.stringify(task) }),
+    update: (id: string, task: any) =>
+        apiCall(`/api/tasks/${id}`, { method: 'PUT', body: JSON.stringify(task) }),
+    move: (id: string, columnId: string, position?: number) =>
+        apiCall(`/api/tasks/${id}/move`, {
+            method: 'PATCH',
+            body: JSON.stringify({ columnId, position }),
+        }),
+    delete: (id: string) =>
+        apiCall(`/api/tasks/${id}`, { method: 'DELETE' }),
+    addSubtask: (taskId: string, text: string, position = 0) =>
+        apiCall(`/api/tasks/${taskId}/subtasks`, {
+            method: 'POST', body: JSON.stringify({ text, position }),
+        }),
+    toggleSubtask: (taskId: string, subtaskId: string) =>
+        apiCall(`/api/tasks/${taskId}/subtasks/${subtaskId}/toggle`, { method: 'PATCH' }),
+    deleteSubtask: (taskId: string, subtaskId: string) =>
+        apiCall(`/api/tasks/${taskId}/subtasks/${subtaskId}`, { method: 'DELETE' }),
+    addAssignee: (taskId: string, userId: string) =>
+        apiCall(`/api/tasks/${taskId}/assignees`, {
+            method: 'POST', body: JSON.stringify({ userId }),
+        }),
+    removeAssignee: (taskId: string, userId: string) =>
+        apiCall(`/api/tasks/${taskId}/assignees/${userId}`, { method: 'DELETE' }),
+    getColumns: (projectId: string) =>
+        apiCall(`/api/tasks/columns/by-project/${projectId}`),
+};
+
+// Sprints API
+export const sprintsAPI = {
+    getAll: (filters: { projectId?: string; status?: string } = {}) => {
+        const params = new URLSearchParams();
+        Object.entries(filters).forEach(([k, v]) => v && params.append(k, v));
+        const q = params.toString();
+        return apiCall(`/api/sprints${q ? `?${q}` : ''}`);
+    },
+    getActive: (projectId?: string) =>
+        apiCall(`/api/sprints/active${projectId ? `?projectId=${projectId}` : ''}`),
+    create: (sprint: any) =>
+        apiCall('/api/sprints', { method: 'POST', body: JSON.stringify(sprint) }),
+    update: (id: string, sprint: any) =>
+        apiCall(`/api/sprints/${id}`, { method: 'PUT', body: JSON.stringify(sprint) }),
+    delete: (id: string) =>
+        apiCall(`/api/sprints/${id}`, { method: 'DELETE' }),
+};
+
+// Activities API
+export const activitiesAPI = {
+    getAll: (filters: { projectId?: string; limit?: number } = {}) => {
+        const params = new URLSearchParams();
+        if (filters.projectId) params.append('projectId', filters.projectId);
+        if (filters.limit) params.append('limit', String(filters.limit));
+        const q = params.toString();
+        return apiCall(`/api/activities${q ? `?${q}` : ''}`);
+    },
+    create: (activity: any) =>
+        apiCall('/api/activities', { method: 'POST', body: JSON.stringify(activity) }),
+};
+
+// Time entries API
+export const timeAPI = {
+    getAll: (filters: any = {}) => {
+        const params = new URLSearchParams();
+        Object.entries(filters).forEach(([k, v]) => v && params.append(k, String(v)));
+        const q = params.toString();
+        return apiCall(`/api/time-entries${q ? `?${q}` : ''}`);
+    },
+    summary: (period: 'week' | 'month' | 'year' = 'month') =>
+        apiCall(`/api/time-entries/summary?period=${period}`),
+    create: (entry: any) =>
+        apiCall('/api/time-entries', { method: 'POST', body: JSON.stringify(entry) }),
+    delete: (id: string) =>
+        apiCall(`/api/time-entries/${id}`, { method: 'DELETE' }),
+};
+
+// Messages / Chat API
+export const messagesAPI = {
+    getChats: () => apiCall('/api/chats'),
+    getMessages: (chatId: string) => apiCall(`/api/chats/${chatId}/messages`),
+    sendMessage: (chatId: string, body: string) =>
+        apiCall(`/api/chats/${chatId}/messages`, {
+            method: 'POST', body: JSON.stringify({ body }),
+        }),
+    createChat: (data: { name?: string; projectId?: string; memberIds?: string[] }) =>
+        apiCall('/api/chats', { method: 'POST', body: JSON.stringify(data) }),
 };
 

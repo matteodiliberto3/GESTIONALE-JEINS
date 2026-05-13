@@ -1,12 +1,21 @@
 import React, { useState } from 'react';
 import { authAPI } from '../services/api.ts';
-import { LogIn, UserPlus, Mail, Lock, AlertCircle } from 'lucide-react';
+import { LogIn, UserPlus, Mail, Lock, AlertCircle, User, Sparkles } from 'lucide-react';
+import { ThemeProvider } from '../theme/ThemeProvider';
 
 interface LoginProps {
-    onLoginSuccess: (user: any, token: string) => void;
+    onLoginSuccess: (user: any, token?: string) => void;
 }
 
-export default function Login({ onLoginSuccess }: LoginProps) {
+export default function Login(props: LoginProps) {
+    return (
+        <ThemeProvider>
+            <LoginInner {...props} />
+        </ThemeProvider>
+    );
+}
+
+function LoginInner({ onLoginSuccess }: LoginProps) {
     const [isLogin, setIsLogin] = useState(true);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -22,24 +31,13 @@ export default function Login({ onLoginSuccess }: LoginProps) {
 
         try {
             if (isLogin) {
-                // Login
                 const response = await authAPI.login(email, password);
                 localStorage.setItem('token', response.token);
                 localStorage.setItem('user', JSON.stringify(response.user));
                 onLoginSuccess(response.user, response.token);
             } else {
-                // Registrazione
-                if (!name) {
-                    setError('Il nome è obbligatorio');
-                    setLoading(false);
-                    return;
-                }
-                const response = await authAPI.register({
-                    name,
-                    email,
-                    password,
-                    area,
-                });
+                if (!name) { setError('Il nome è obbligatorio'); setLoading(false); return; }
+                const response = await authAPI.register({ name, email, password, area });
                 localStorage.setItem('token', response.token);
                 localStorage.setItem('user', JSON.stringify(response.user));
                 onLoginSuccess(response.user, response.token);
@@ -52,129 +50,183 @@ export default function Login({ onLoginSuccess }: LoginProps) {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-4">
-            <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
-                <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold text-gray-800 mb-2">Gestionale</h1>
-                    <p className="text-gray-600">
-                        {isLogin ? 'Accedi al tuo account' : 'Crea un nuovo account'}
+        <div className="min-h-screen relative overflow-hidden bg-surface text-ink flex items-center justify-center p-4">
+            <BackgroundOrnaments />
+
+            <div className="relative w-full max-w-md">
+                <div className="card p-8 backdrop-blur-xl bg-surface-raised/80">
+                    <div className="flex items-center gap-3 mb-1">
+                        <div className="w-10 h-10 rounded-xl bg-grad-violet shadow-glow-violet flex items-center justify-center">
+                            <span className="text-white font-bold text-lg">G</span>
+                        </div>
+                        <div>
+                            <h1 className="text-xl font-bold text-ink leading-none">Gestionale</h1>
+                            <p className="text-[11px] text-ink-subtle mt-0.5">Project & client management</p>
+                        </div>
+                    </div>
+
+                    <h2 className="text-2xl font-bold text-ink mt-6 mb-1">
+                        {isLogin ? 'Bentornato' : 'Crea il tuo account'}
+                    </h2>
+                    <p className="text-sm text-ink-muted mb-6">
+                        {isLogin ? 'Accedi per gestire progetti, clienti e contabilità.' : 'Inizia in pochi secondi.'}
                     </p>
-                </div>
 
-                {error && (
-                    <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg flex items-center gap-2">
-                        <AlertCircle className="w-5 h-5" />
-                        <span>{error}</span>
-                    </div>
-                )}
+                    {error && (
+                        <div className="mb-4 px-3 py-2.5 bg-rose-500/10 border border-rose-500/30 rounded-xl
+                                        text-rose-300 text-sm flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                            <span>{error}</span>
+                        </div>
+                    )}
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {!isLogin && (
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Nome Completo
-                            </label>
-                            <input
+                    <form onSubmit={handleSubmit} className="space-y-3.5">
+                        {!isLogin && (
+                            <Field
+                                icon={<User className="w-4 h-4" />}
                                 type="text"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                 placeholder="Mario Rossi"
-                                required={!isLogin}
-                            />
-                        </div>
-                    )}
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Email
-                        </label>
-                        <div className="relative">
-                            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                            <input
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                placeholder="mario.rossi@example.com"
+                                label="Nome completo"
+                                value={name}
+                                onChange={setName}
                                 required
                             />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Password
-                        </label>
-                        <div className="relative">
-                            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                placeholder="••••••••"
-                                required
-                                minLength={6}
-                            />
-                        </div>
-                    </div>
-
-                    {!isLogin && (
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Area di Competenza
-                            </label>
-                            <select
-                                value={area}
-                                onChange={(e) => setArea(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                            >
-                                <option value="CDA">CDA</option>
-                                <option value="Marketing">Marketing</option>
-                                <option value="IT">IT</option>
-                                <option value="Commerciale">Commerciale</option>
-                            </select>
-                        </div>
-                    )}
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {loading ? (
-                            <span>Caricamento...</span>
-                        ) : isLogin ? (
-                            <>
-                                <LogIn className="w-5 h-5" />
-                                <span>Accedi</span>
-                            </>
-                        ) : (
-                            <>
-                                <UserPlus className="w-5 h-5" />
-                                <span>Registrati</span>
-                            </>
                         )}
-                    </button>
-                </form>
 
-                <div className="mt-6 text-center">
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setIsLogin(!isLogin);
-                            setError('');
-                        }}
-                        className="text-indigo-600 hover:text-indigo-700 text-sm font-medium"
-                    >
-                        {isLogin
-                            ? 'Non hai un account? Registrati'
-                            : 'Hai già un account? Accedi'}
-                    </button>
+                        <Field
+                            icon={<Mail className="w-4 h-4" />}
+                            type="email"
+                            placeholder="mario.rossi@example.com"
+                            label="Email"
+                            value={email}
+                            onChange={setEmail}
+                            required
+                        />
+
+                        <Field
+                            icon={<Lock className="w-4 h-4" />}
+                            type="password"
+                            placeholder="••••••••"
+                            label="Password"
+                            value={password}
+                            onChange={setPassword}
+                            required
+                            minLength={6}
+                        />
+
+                        {!isLogin && (
+                            <div>
+                                <label className="block text-xs font-medium text-ink-muted mb-1.5">
+                                    Area di competenza
+                                </label>
+                                <select
+                                    value={area}
+                                    onChange={(e) => setArea(e.target.value)}
+                                    className="input"
+                                >
+                                    <option value="CDA">CDA</option>
+                                    <option value="Marketing">Marketing</option>
+                                    <option value="IT">IT</option>
+                                    <option value="Commerciale">Commerciale</option>
+                                </select>
+                            </div>
+                        )}
+
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="btn-primary w-full mt-2 py-3"
+                        >
+                            {loading ? (
+                                <span>Caricamento…</span>
+                            ) : isLogin ? (
+                                <><LogIn className="w-4 h-4" /> Accedi</>
+                            ) : (
+                                <><UserPlus className="w-4 h-4" /> Registrati</>
+                            )}
+                        </button>
+                    </form>
+
+                    <div className="mt-6 text-center">
+                        <button
+                            type="button"
+                            onClick={() => { setIsLogin(!isLogin); setError(''); }}
+                            className="text-sm text-brand-300 hover:text-brand-200 font-medium"
+                        >
+                            {isLogin
+                                ? 'Non hai un account? Registrati'
+                                : 'Hai già un account? Accedi'}
+                        </button>
+                    </div>
                 </div>
+
+                <p className="mt-6 text-center text-[11px] text-ink-subtle flex items-center justify-center gap-1.5">
+                    <Sparkles className="w-3 h-3" />
+                    UI rinnovata · Dark / Light mode
+                </p>
             </div>
         </div>
     );
 }
 
+function Field({
+    icon, type = 'text', placeholder, label, value, onChange, required, minLength,
+}: {
+    icon: React.ReactNode;
+    type?: string;
+    placeholder?: string;
+    label: string;
+    value: string;
+    onChange: (v: string) => void;
+    required?: boolean;
+    minLength?: number;
+}) {
+    return (
+        <div>
+            <label className="block text-xs font-medium text-ink-muted mb-1.5">{label}</label>
+            <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-subtle pointer-events-none">{icon}</span>
+                <input
+                    type={type}
+                    placeholder={placeholder}
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    required={required}
+                    minLength={minLength}
+                    className="input pl-10"
+                />
+            </div>
+        </div>
+    );
+}
+
+function BackgroundOrnaments() {
+    return (
+        <>
+            <div
+                aria-hidden
+                className="pointer-events-none absolute -top-32 -left-32 w-[28rem] h-[28rem] rounded-full"
+                style={{
+                    background: 'radial-gradient(closest-side, rgba(139,92,246,.45), transparent 70%)',
+                    filter: 'blur(20px)',
+                }}
+            />
+            <div
+                aria-hidden
+                className="pointer-events-none absolute -bottom-40 -right-32 w-[32rem] h-[32rem] rounded-full"
+                style={{
+                    background: 'radial-gradient(closest-side, rgba(217,70,239,.4), transparent 70%)',
+                    filter: 'blur(20px)',
+                }}
+            />
+            <div
+                aria-hidden
+                className="pointer-events-none absolute top-1/3 right-1/4 w-72 h-72 rounded-full"
+                style={{
+                    background: 'radial-gradient(closest-side, rgba(34,211,238,.3), transparent 70%)',
+                    filter: 'blur(28px)',
+                }}
+            />
+        </>
+    );
+}
