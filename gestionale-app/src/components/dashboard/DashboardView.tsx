@@ -1,19 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import { KanbanBoard } from './KanbanBoard';
+import { BentoCell } from '../motion/BentoCell';
+import { MotionDialog } from '../motion/MotionDialog';
+import { bentoStagger } from '../../motion/variants';
+import { useReducedMotion } from '../../motion/useReducedMotion';
 import { TimeSheet } from './TimeSheet';
 import { SprintVelocity } from './SprintVelocity';
 import { ActivityFeed } from './ActivityFeed';
 import { CalendarMini } from './CalendarMini';
-import { ChatDetails } from './ChatDetails';
 import { PromoCard } from './PromoCard';
 import { Plus, X } from 'lucide-react';
 import {
     tasksAPI, sprintsAPI, activitiesAPI, timeAPI,
-    messagesAPI, eventsAPI, usersAPI,
+    eventsAPI, usersAPI,
 } from '../../services/api';
 import type {
     Task, BoardColumn, Sprint, Activity, TimeEntrySummary,
-    Chat, Message, User,
+    User,
 } from '../../types/models';
 
 interface DashboardViewProps {
@@ -28,9 +32,6 @@ export function DashboardView({ activeProjectId, currentUser }: DashboardViewPro
     const [activities, setActivities] = useState<Activity[]>([]);
     const [timeSummary, setTimeSummary] = useState<TimeEntrySummary[]>([]);
     const [events, setEvents] = useState<any[]>([]);
-    const [, setChats] = useState<Chat[]>([]);
-    const [activeChat, setActiveChat] = useState<Chat | null>(null);
-    const [messages, setMessages] = useState<Message[]>([]);
     const [members, setMembers] = useState<User[]>([]);
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [taskComposerColumnId, setTaskComposerColumnId] = useState<string | null>(null);
@@ -44,14 +45,13 @@ export function DashboardView({ activeProjectId, currentUser }: DashboardViewPro
                     try { return await p; } catch { return fb; }
                 };
 
-                const [colsRaw, tasksRaw, sprint, acts, sum, evs, chs, users] = await Promise.all([
+                const [colsRaw, tasksRaw, sprint, acts, sum, evs, users] = await Promise.all([
                     activeProjectId ? safe(tasksAPI.getColumns(activeProjectId), []) : Promise.resolve([]),
                     safe(tasksAPI.getAll(activeProjectId ? { projectId: activeProjectId } : {}), []),
                     safe(sprintsAPI.getActive(activeProjectId || undefined), null),
                     safe(activitiesAPI.getAll({ limit: 20 }), []),
                     safe(timeAPI.summary('month'), []),
                     safe(eventsAPI.getAll({}), []),
-                    safe(messagesAPI.getChats(), []),
                     safe(usersAPI.getAll(), []),
                 ]);
 
@@ -67,15 +67,7 @@ export function DashboardView({ activeProjectId, currentUser }: DashboardViewPro
                 setActivities(acts as Activity[]);
                 setTimeSummary(sum as TimeEntrySummary[]);
                 setEvents(evs as any[]);
-                setChats(chs as Chat[]);
                 setMembers(users as User[]);
-
-                const firstChat = (chs as Chat[])[0] || null;
-                setActiveChat(firstChat);
-                if (firstChat) {
-                    const msgs = await safe(messagesAPI.getMessages(firstChat.id), []);
-                    if (!cancelled) setMessages(msgs as Message[]);
-                }
             } catch (err) {
                 console.error('Errore loading dashboard:', err);
             }
@@ -94,7 +86,6 @@ export function DashboardView({ activeProjectId, currentUser }: DashboardViewPro
     const displayTimeSummary = timeSummary.length ? timeSummary : mockTimeSummary(members);
     const displaySprint = activeSprint || mockSprint;
     const displayEvents = events.length ? events : mockEvents();
-    const displayMembers = members.length ? members : mockMembers;
 
     const handleMoveTask = async (taskId: string, columnId: string, position: number) => {
         setTasks(prev => prev.map(t =>
@@ -104,29 +95,6 @@ export function DashboardView({ activeProjectId, currentUser }: DashboardViewPro
             if (tasks.length > 0) await tasksAPI.move(taskId, columnId, position);
         } catch (err) {
             console.error('Errore move task:', err);
-        }
-    };
-
-    const handleSendMessage = async (body: string) => {
-        if (!activeChat) {
-            const optimistic: Message = {
-                id: `local-${Date.now()}`,
-                chatId: 'local',
-                senderId: currentUser?.id || null,
-                senderName: currentUser?.name,
-                senderAvatar: currentUser?.avatarUrl,
-                senderColor: currentUser?.color,
-                body,
-                createdAt: new Date().toISOString(),
-            };
-            setMessages(prev => [...prev, optimistic]);
-            return;
-        }
-        try {
-            const sent = await messagesAPI.sendMessage(activeChat.id, body) as Message;
-            setMessages(prev => [...prev, { ...sent, senderName: currentUser?.name }]);
-        } catch (err) {
-            console.error('Errore invio messaggio:', err);
         }
     };
 
@@ -189,25 +157,42 @@ export function DashboardView({ activeProjectId, currentUser }: DashboardViewPro
         ? Number(((displaySprint.completedPoints / Math.max(1, displaySprint.targetPoints)) * 100).toFixed(2))
         : 87.29;
 
+    const reducedMotion = useReducedMotion();
+
     return (
-        <div className="space-y-5 animate-fade-in">
-            <KanbanBoard
-                columns={cols}
-                tasks={displayTasks}
-                onMoveTask={handleMoveTask}
-                onAddTask={handleAddTask}
+        <motion.div
+            className="dashboard-bento"
+            variants={reducedMotion ? undefined : bentoStagger}
+            initial={reducedMotion ? false : 'hidden'}
+            animate={reducedMotion ? undefined : 'show'}
+        >
+            <BentoCell className="bento-kanban">
+                <KanbanBoard
+                    columns={cols}
+                    tasks={displayTasks}
+                    onMoveTask={handleMoveTask}
+                    onAddTask={handleAddTask}
+                />
+            </BentoCell>
+
+            <TaskComposerDialog
+                open={!!taskComposerColumnId}
+                columnName={cols.find(c => c.id === taskComposerColumnId)?.name || 'Task'}
+                onClose={() => setTaskComposerColumnId(null)}
+                onSubmit={(title) => {
+                    if (taskComposerColumnId) createTask(title, taskComposerColumnId);
+                }}
             />
 
-            {taskComposerColumnId && (
-                <TaskComposerDialog
-                    columnName={cols.find(c => c.id === taskComposerColumnId)?.name || 'Task'}
-                    onClose={() => setTaskComposerColumnId(null)}
-                    onSubmit={(title) => createTask(title, taskComposerColumnId)}
-                />
-            )}
+            <BentoCell className="bento-activity">
+                <ActivityFeed activities={displayActivities} />
+            </BentoCell>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            <BentoCell className="bento-timesheet">
                 <TimeSheet summary={displayTimeSummary} period="month" />
+            </BentoCell>
+
+            <BentoCell className="bento-velocity">
                 <SprintVelocity
                     sprint={displaySprint}
                     avgPoints={avgPoints}
@@ -219,11 +204,17 @@ export function DashboardView({ activeProjectId, currentUser }: DashboardViewPro
                         { label: 'Apr', value: 87 },
                     ]}
                 />
-                <ActivityFeed activities={displayActivities} />
-            </div>
+            </BentoCell>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                <CalendarMini events={displayEvents} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+            <BentoCell className="bento-calendar">
+                <CalendarMini
+                    events={displayEvents}
+                    selectedDate={selectedDate}
+                    onSelectDate={setSelectedDate}
+                />
+            </BentoCell>
+
+            <BentoCell className="bento-promo">
                 <PromoCard
                     onAction={() => window.dispatchEvent(new CustomEvent('app:notice', {
                         detail: {
@@ -232,21 +223,15 @@ export function DashboardView({ activeProjectId, currentUser }: DashboardViewPro
                         },
                     }))}
                 />
-                <ChatDetails
-                    chatName={activeChat?.name || 'Team Project Board'}
-                    members={displayMembers}
-                    messages={messages.length ? messages : mockMessages(displayMembers)}
-                    currentUserId={currentUser?.id}
-                    onSend={handleSendMessage}
-                />
-            </div>
-        </div>
+            </BentoCell>
+        </motion.div>
     );
 }
 
 function TaskComposerDialog({
-    columnName, onClose, onSubmit,
+    open, columnName, onClose, onSubmit,
 }: {
+    open: boolean;
     columnName: string;
     onClose: () => void;
     onSubmit: (title: string) => void;
@@ -269,23 +254,21 @@ function TaskComposerDialog({
     }, [onClose]);
 
     return (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center px-4">
-            <button
-                type="button"
-                className="absolute inset-0 bg-black/55 backdrop-blur-sm animate-service-fade"
-                onClick={onClose}
-                aria-label="Chiudi"
-            />
-            <form
-                onSubmit={submit}
-                className="relative w-full max-w-md rounded-[28px] border border-line/70 bg-surface-raised/95 p-5 shadow-raised animate-service-pop"
-            >
+        <MotionDialog
+            open={open}
+            onClose={onClose}
+            className="relative w-full max-w-md rounded-[28px] border border-line/70 bg-surface-raised/95 p-5 shadow-raised"
+            labelledBy="task-composer-title"
+        >
+            <form onSubmit={submit}>
                 <div className="flex items-start justify-between gap-4">
                     <div>
                         <p className="text-[11px] uppercase tracking-[0.18em] text-brand-300 font-semibold">
                             Nuovo task
                         </p>
-                        <h3 className="text-lg font-semibold text-ink mt-1">Aggiungi a {columnName}</h3>
+                        <h3 id="task-composer-title" className="text-lg font-semibold text-ink mt-1">
+                            Aggiungi a {columnName}
+                        </h3>
                         <p className="text-xs text-ink-subtle mt-1">
                             Scrivi un titolo chiaro. Invio salva, Esc chiude.
                         </p>
@@ -318,7 +301,7 @@ function TaskComposerDialog({
                     </button>
                 </div>
             </form>
-        </div>
+        </MotionDialog>
     );
 }
 
@@ -445,24 +428,3 @@ function mockEvents() {
     ];
 }
 
-function mockMessages(members: User[]): Message[] {
-    const team = members.length ? members : mockMembers;
-    const now = Date.now();
-    return [
-        {
-            id: 'm1', chatId: 'local', senderId: team[1]?.id || team[0].id, senderName: team[1]?.name,
-            senderColor: team[1]?.color, body: 'Pronti per la review delle 17?',
-            createdAt: new Date(now - 1000 * 60 * 14).toISOString(),
-        },
-        {
-            id: 'm2', chatId: 'local', senderId: team[0].id, senderName: team[0].name,
-            senderColor: team[0].color, body: 'Sì, ho già pushato le ultime modifiche.',
-            createdAt: new Date(now - 1000 * 60 * 12).toISOString(),
-        },
-        {
-            id: 'm3', chatId: 'local', senderId: team[2]?.id || team[0].id, senderName: team[2]?.name,
-            senderColor: team[2]?.color, body: 'Aggiungo le note sul Kanban!',
-            createdAt: new Date(now - 1000 * 60 * 4).toISOString(),
-        },
-    ];
-}

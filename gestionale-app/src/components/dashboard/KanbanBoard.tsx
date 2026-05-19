@@ -5,8 +5,10 @@ import {
 } from '@dnd-kit/core';
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { motion } from 'framer-motion';
 import { Plus, Filter, Share2 } from 'lucide-react';
 import { TaskCard } from './TaskCard';
+import { SPRING, TRANSITION } from '../../motion/presets';
 import type { Task, BoardColumn } from '../../types/models';
 
 interface KanbanBoardProps {
@@ -33,7 +35,7 @@ export function KanbanBoard({ columns, tasks, onMoveTask, onAddTask }: KanbanBoa
     };
 
     const sensors = useSensors(useSensor(PointerSensor, {
-        activationConstraint: { distance: 6 },
+        activationConstraint: { distance: 8 },
     }));
 
     const tasksByColumn = useMemo(() => {
@@ -56,10 +58,10 @@ export function KanbanBoard({ columns, tasks, onMoveTask, onAddTask }: KanbanBoa
         setActiveTask(null);
         if (!over) return;
 
-        const overData = over.data.current as any;
+        const overData = over.data.current as { type?: string; task?: Task; columnId?: string } | undefined;
         const overColumnId =
             overData?.type === 'column' ? (over.id as string)
-            : overData?.type === 'task' ? overData.task.columnId
+            : overData?.type === 'task' ? overData.task?.columnId
             : null;
 
         if (!overColumnId) return;
@@ -80,28 +82,44 @@ export function KanbanBoard({ columns, tasks, onMoveTask, onAddTask }: KanbanBoa
     };
 
     return (
-        <section className="card overflow-hidden">
+        <motion.section
+            className="bento-panel overflow-hidden"
+            layout
+            transition={TRANSITION.normal}
+        >
             <div className="flex items-center justify-between px-5 pt-5 pb-3">
-                <h3 className="text-base font-semibold text-ink">All Tasks</h3>
-                <div className="flex items-center gap-1">
-                    <button
+                <h3 className="text-base font-semibold text-ink tracking-tight">All Tasks</h3>
+                <motion.div className="flex items-center gap-1" layout="position">
+                    <motion.button
+                        type="button"
                         className="icon-btn"
                         aria-label="Filtra"
+                        whileTap={{ scale: 0.96 }}
+                        transition={SPRING.snap}
                         onClick={() => notice('Filtri task', 'Filtro pronto: qui potrai filtrare per priorità, assegnatario e sprint.')}
                     >
                         <Filter className="w-4 h-4" />
-                    </button>
-                    <button
+                    </motion.button>
+                    <motion.button
+                        type="button"
                         className="icon-btn"
                         aria-label="Condividi"
+                        whileTap={{ scale: 0.96 }}
+                        transition={SPRING.snap}
                         onClick={() => notice('Condividi board', 'Link board preparato. Collega qui copia link o invito team.')}
                     >
                         <Share2 className="w-4 h-4" />
-                    </button>
-                    <button className="btn-primary text-xs px-3 py-1.5" onClick={() => onAddTask?.(columns[0]?.id || '')}>
+                    </motion.button>
+                    <motion.button
+                        type="button"
+                        className="btn-primary text-xs px-3 py-1.5"
+                        whileTap={{ scale: 0.98 }}
+                        transition={SPRING.snap}
+                        onClick={() => onAddTask?.(columns[0]?.id || '')}
+                    >
                         <Plus className="w-3.5 h-3.5" /> Add Task
-                    </button>
-                </div>
+                    </motion.button>
+                </motion.div>
             </div>
 
             <div className="px-5 pb-5">
@@ -118,16 +136,21 @@ export function KanbanBoard({ columns, tasks, onMoveTask, onAddTask }: KanbanBoa
                             />
                         ))}
                     </div>
-                    <DragOverlay>
+                    <DragOverlay dropAnimation={{ duration: 200, easing: 'ease-out' }}>
                         {activeTask && (
-                            <div className="w-72">
+                            <motion.div
+                                className="w-72"
+                                initial={{ scale: 1, rotate: 0 }}
+                                animate={{ scale: 1.02, rotate: 0.5 }}
+                                transition={SPRING.soft}
+                            >
                                 <TaskCard task={activeTask} isOverlay />
-                            </div>
+                            </motion.div>
                         )}
                     </DragOverlay>
                 </DndContext>
             </div>
-        </section>
+        </motion.section>
     );
 }
 
@@ -146,38 +169,55 @@ function KanbanColumn({
 
     return (
         <div ref={setNodeRef} className="w-72 flex-shrink-0">
-            <div className={`flex items-center justify-between mb-2 px-1 py-1 rounded-lg
+            <div className={`flex items-center justify-between mb-2 px-1 py-1 rounded-lg transition-colors duration-200
                              ${isOver ? 'bg-surface-inset/70' : ''}`}>
-                <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full
-                                 bg-surface-inset border border-line/60`}>
+                <motion.div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full
+                                 bg-surface-inset/80 border border-line/50 backdrop-blur-sm`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${accent.dot}`} />
                     <span className={`text-[11px] font-semibold uppercase tracking-wider ${accent.text}`}>
                         {column.name}
                     </span>
-                    <span className="text-[10px] text-ink-subtle font-medium">{tasks.length}</span>
-                </div>
-                <button
+                    <motion.span
+                        key={tasks.length}
+                        className="text-[10px] text-ink-subtle font-medium tabular-nums"
+                        initial={{ opacity: 0.6, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={SPRING.snap}
+                    >
+                        {tasks.length}
+                    </motion.span>
+                </motion.div>
+                <motion.button
+                    type="button"
                     className="icon-btn !w-7 !h-7"
+                    whileTap={{ scale: 0.94 }}
+                    transition={SPRING.snap}
                     onClick={() => onAddTask?.(column.id)}
                     aria-label="Aggiungi task"
                 >
                     <Plus className="w-3.5 h-3.5" />
-                </button>
+                </motion.button>
             </div>
 
-            <div className={`min-h-[200px] rounded-xl space-y-2 p-1
-                             ${isOver ? 'bg-brand-500/5 ring-1 ring-brand-500/30' : ''}`}>
+            <motion.div
+                className="kanban-well space-y-2"
+                animate={{
+                    borderColor: isOver ? 'rgba(139, 92, 246, 0.35)' : 'rgba(42, 40, 52, 0.45)',
+                    backgroundColor: isOver ? 'rgba(139, 92, 246, 0.08)' : 'rgba(14, 14, 18, 0.35)',
+                }}
+                transition={TRANSITION.fast}
+            >
                 <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
                     {tasks.map(t => (
                         <TaskCard key={t.id} task={t} />
                     ))}
                 </SortableContext>
                 {tasks.length === 0 && (
-                    <div className="text-[11px] text-ink-subtle italic px-3 py-6 text-center">
+                    <p className="text-[11px] text-ink-subtle italic px-3 py-6 text-center">
                         Trascina qui i task
-                    </div>
+                    </p>
                 )}
-            </div>
+            </motion.div>
         </div>
     );
 }

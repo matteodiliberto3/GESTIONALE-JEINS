@@ -147,7 +147,7 @@ export default function Calendar({ currentUser }: CalendarProps) {
     };
 
     if (loading) {
-        return <div className="flex justify-center items-center h-64">Caricamento eventi...</div>;
+        return <div className="flex justify-center items-center h-64 text-ink-muted">Caricamento eventi…</div>;
     }
 
     const monthEvents = getMonthEvents();
@@ -157,36 +157,35 @@ export default function Calendar({ currentUser }: CalendarProps) {
     const dayNames = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
 
     return (
-        <div className="space-y-6">
-            {/* Header Calendario */}
-            <div className="bg-white rounded-lg shadow-md p-4">
+        <div className="space-y-6 animate-fade-in">
+            <div className="bento-panel p-5">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-4">
                         <button
                             onClick={() => changeMonth(-1)}
-                            className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                            className="icon-btn"
                         >
                             ‹
                         </button>
-                        <h2 className="text-xl font-semibold">
+                        <h2 className="text-xl font-semibold text-ink tracking-tight">
                             {monthNames[selectedDate.getMonth()]} {selectedDate.getFullYear()}
                         </h2>
                         <button
                             onClick={() => changeMonth(1)}
-                            className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                            className="icon-btn"
                         >
                             ›
                         </button>
                         <button
                             onClick={() => setSelectedDate(new Date())}
-                            className="px-3 py-1 text-sm bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded transition-colors"
+                            className="btn-soft text-xs px-3 py-1.5"
                         >
                             Oggi
                         </button>
                     </div>
                     <button
                         onClick={() => setIsCreateModalOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                        className="btn-primary"
                     >
                         <Plus className="w-5 h-5" />
                         <span>Nuovo Evento</span>
@@ -197,7 +196,7 @@ export default function Calendar({ currentUser }: CalendarProps) {
                 <div className="grid grid-cols-7 gap-1">
                     {/* Nomi giorni */}
                     {dayNames.map(day => (
-                        <div key={day} className="p-2 text-center text-sm font-medium text-gray-600 bg-gray-50 rounded">
+                        <div key={day} className="py-2 text-center text-xs font-semibold uppercase tracking-wider text-ink-muted">
                             {day}
                         </div>
                     ))}
@@ -212,13 +211,15 @@ export default function Calendar({ currentUser }: CalendarProps) {
                         return (
                             <div
                                 key={index}
-                                className={`min-h-[100px] p-1 border border-gray-200 rounded ${
-                                    day === null ? 'bg-gray-50' : 'bg-white hover:bg-gray-50'
-                                } ${isToday ? 'ring-2 ring-indigo-500' : ''}`}
+                                className={`min-h-[100px] p-1.5 rounded-xl border transition-colors ${
+                                    day === null
+                                        ? 'border-transparent bg-transparent'
+                                        : 'border-line/40 bg-surface-inset/35 hover:bg-surface-inset/55'
+                                } ${isToday ? 'ring-1 ring-brand-500/50' : ''}`}
                             >
                                 {day !== null && (
                                     <>
-                                        <div className={`text-sm font-medium mb-1 ${isToday ? 'text-indigo-600' : 'text-gray-700'}`}>
+                                        <div className={`text-sm font-semibold mb-1.5 tabular-nums ${isToday ? 'text-brand-300' : 'text-ink'}`}>
                                             {day}
                                         </div>
                                         <div className="space-y-1">
@@ -229,10 +230,10 @@ export default function Calendar({ currentUser }: CalendarProps) {
                                                         setSelectedEvent(event);
                                                         setIsModalOpen(true);
                                                     }}
-                                                    className={`text-xs p-1 rounded cursor-pointer truncate ${
+                                                    className={`text-[11px] px-1.5 py-1 rounded-md cursor-pointer truncate font-medium ${
                                                         event.isCall
-                                                            ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-                                                            : 'bg-green-100 text-green-800 hover:bg-green-200'
+                                                            ? 'bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25 border border-cyan-500/20'
+                                                            : 'bg-brand-500/15 text-brand-200 hover:bg-brand-500/25 border border-brand-500/20'
                                                     }`}
                                                     title={event.title}
                                                 >
@@ -241,7 +242,7 @@ export default function Calendar({ currentUser }: CalendarProps) {
                                                 </div>
                                             ))}
                                             {dayEvents.length > 3 && (
-                                                <div className="text-xs text-gray-500">
+                                                <div className="text-xs text-ink-subtle">
                                                     +{dayEvents.length - 3} altri
                                                 </div>
                                             )}
@@ -255,10 +256,10 @@ export default function Calendar({ currentUser }: CalendarProps) {
             </div>
 
             {/* Lista Eventi del Mese */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-                <h3 className="text-lg font-semibold mb-4">Eventi di {monthNames[selectedDate.getMonth()]}</h3>
+            <div className="bento-panel p-6">
+                <h3 className="text-lg font-semibold text-ink tracking-tight mb-4">Eventi di {monthNames[selectedDate.getMonth()]}</h3>
                 {monthEvents.length === 0 ? (
-                    <p className="text-gray-500">Nessun evento questo mese</p>
+                    <p className="text-ink-muted text-sm">Nessun evento questo mese</p>
                 ) : (
                     <div className="space-y-3">
                         {monthEvents.map(event => {
@@ -270,19 +271,19 @@ export default function Calendar({ currentUser }: CalendarProps) {
                                         setSelectedEvent(event);
                                         setIsModalOpen(true);
                                     }}
-                                    className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                                    className="p-4 bento-panel--task border border-line/40 rounded-2xl hover:border-brand-500/30 cursor-pointer transition-colors"
                                 >
                                     <div className="flex items-start justify-between">
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2 mb-2">
                                                 {event.isCall && (
-                                                    <Phone className="w-4 h-4 text-blue-600" />
+                                                    <Phone className="w-4 h-4 text-cyan-300 shrink-0" />
                                                 )}
-                                                <h4 className="font-semibold text-gray-900">{event.title}</h4>
+                                                <h4 className="font-semibold text-ink truncate">{event.title}</h4>
                                             </div>
-                                            <div className="flex items-center gap-4 text-sm text-gray-600">
+                                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-muted">
                                                 <div className="flex items-center gap-1">
-                                                    <Clock className="w-4 h-4" />
+                                                    <Clock className="w-4 h-4 text-ink-subtle" />
                                                     {formatDateTime(event.startTime)} - {formatTime(event.endTime)}
                                                 </div>
                                                 {event.participants && event.participants.length > 0 && (
@@ -293,7 +294,7 @@ export default function Calendar({ currentUser }: CalendarProps) {
                                                 )}
                                             </div>
                                             {event.description && (
-                                                <p className="text-sm text-gray-600 mt-2">{event.description}</p>
+                                                <p className="text-sm text-ink-muted mt-2 line-clamp-2">{event.description}</p>
                                             )}
                                         </div>
                                         {myStatus && (
@@ -365,9 +366,9 @@ function EventDetailModal({ event, currentUser, onClose, onRSVP }: any) {
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'accepted': return 'bg-green-100 text-green-800';
-            case 'declined': return 'bg-red-100 text-red-800';
-            default: return 'bg-yellow-100 text-yellow-800';
+            case 'accepted': return 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25';
+            case 'declined': return 'bg-rose-500/15 text-rose-300 border border-rose-500/25';
+            default: return 'bg-amber-500/15 text-amber-300 border border-amber-500/25';
         }
     };
 
@@ -382,10 +383,10 @@ function EventDetailModal({ event, currentUser, onClose, onRSVP }: any) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="fixed inset-0 bg-black/50" onClick={onClose}></div>
-            <div className="relative bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="relative bento-panel w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-raised">
                 <button
                     onClick={onClose}
-                    className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                    className="absolute top-4 right-4 icon-btn z-10"
                 >
                     <XCircle className="w-6 h-6" />
                 </button>
@@ -393,16 +394,16 @@ function EventDetailModal({ event, currentUser, onClose, onRSVP }: any) {
                 <div className="p-6">
                     <div className="flex items-start gap-4 mb-4">
                         {event.isCall && (
-                            <div className="p-3 bg-blue-100 rounded-lg">
-                                <Phone className="w-6 h-6 text-blue-600" />
+                            <div className="p-3 bg-cyan-500/15 rounded-xl border border-cyan-500/25">
+                                <Phone className="w-6 h-6 text-cyan-300" />
                             </div>
                         )}
                         <div className="flex-1">
-                            <h2 className="text-2xl font-bold text-gray-900 mb-2">{event.title}</h2>
+                            <h2 className="text-2xl font-bold text-ink mb-2">{event.title}</h2>
                             {event.description && (
-                                <p className="text-gray-600 mb-4">{event.description}</p>
+                                <p className="text-ink-muted mb-4">{event.description}</p>
                             )}
-                            <div className="space-y-2 text-sm text-gray-600">
+                            <div className="space-y-2 text-sm text-ink-muted">
                                 <div className="flex items-center gap-2">
                                     <Clock className="w-4 h-4" />
                                     <span>{formatDateTime(event.startTime)}</span>
@@ -424,9 +425,9 @@ function EventDetailModal({ event, currentUser, onClose, onRSVP }: any) {
                     {/* Link Call (solo per call e visibile a creatore e partecipanti) */}
                     {event.isCall && event.callLink && (
                         (currentUser?.id === event.creatorId || myStatus === 'accepted') && (
-                            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                <h3 className="font-medium mb-2 flex items-center gap-2">
-                                    <Phone className="w-5 h-5 text-blue-600" />
+                            <div className="mb-6 p-4 bg-cyan-500/10 border border-cyan-500/25 rounded-lg">
+                                <h3 className="font-medium text-ink mb-2 flex items-center gap-2">
+                                    <Phone className="w-5 h-5 text-cyan-300" />
                                     <span>Link per la Call</span>
                                 </h3>
                                 <div className="flex items-center gap-2">
@@ -434,7 +435,7 @@ function EventDetailModal({ event, currentUser, onClose, onRSVP }: any) {
                                         href={event.callLink}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-center"
+                                        className="btn-primary flex-1 justify-center"
                                     >
                                         Apri Call
                                     </a>
@@ -443,21 +444,21 @@ function EventDetailModal({ event, currentUser, onClose, onRSVP }: any) {
                                             navigator.clipboard.writeText(event.callLink!);
                                             alert('Link copiato negli appunti!');
                                         }}
-                                        className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                                        className="btn-soft px-4 py-2"
                                         title="Copia link"
                                     >
                                         📋
                                     </button>
                                 </div>
-                                <p className="text-xs text-gray-600 mt-2 break-all">{event.callLink}</p>
+                                <p className="text-xs text-ink-muted mt-2 break-all">{event.callLink}</p>
                             </div>
                         )
                     )}
 
                     {/* RSVP Buttons (solo se non è il creatore e non è già accettato/rifiutato) */}
                     {currentUser && event.creatorId !== currentUser.id && (
-                        <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                            <h3 className="font-medium mb-3">Il tuo invito</h3>
+                        <div className="mb-6 p-4 bg-surface-inset/60 rounded-lg">
+                            <h3 className="font-medium text-ink mb-3">Il tuo invito</h3>
                             {myStatus ? (
                                 <div className="flex items-center gap-2">
                                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(myStatus)}`}>
@@ -468,13 +469,13 @@ function EventDetailModal({ event, currentUser, onClose, onRSVP }: any) {
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => onRSVP(event.id, 'accepted')}
-                                        className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                                        className="btn-primary flex-1 bg-emerald-600 hover:brightness-110"
                                     >
                                         Accetta
                                     </button>
                                     <button
                                         onClick={() => onRSVP(event.id, 'declined')}
-                                        className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                                        className="btn-primary flex-1 bg-rose-600 hover:brightness-110"
                                     >
                                         Rifiuta
                                     </button>
@@ -486,16 +487,16 @@ function EventDetailModal({ event, currentUser, onClose, onRSVP }: any) {
                     {/* Partecipanti */}
                     {event.participants && event.participants.length > 0 && (
                         <div>
-                            <h3 className="font-semibold mb-3">Partecipanti ({event.participants.length})</h3>
+                            <h3 className="font-semibold text-ink mb-3">Partecipanti ({event.participants.length})</h3>
                             <div className="space-y-2">
                                 {event.participants.map((participant: Participant) => (
                                     <div
                                         key={participant.id}
-                                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                                        className="flex items-center justify-between p-3 bg-surface-inset/60 rounded-lg"
                                     >
                                         <div>
-                                            <div className="font-medium text-gray-900">{participant.userName}</div>
-                                            <div className="text-sm text-gray-600">{participant.userEmail}</div>
+                                            <div className="font-medium text-ink">{participant.userName}</div>
+                                            <div className="text-sm text-ink-muted">{participant.userEmail}</div>
                                         </div>
                                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(participant.status)}`}>
                                             {getStatusLabel(participant.status)}
@@ -589,71 +590,71 @@ function CreateEventModal({ allUsers, currentUser, onClose, onSuccess }: any) {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="fixed inset-0 bg-black/50" onClick={onClose}></div>
-            <div className="relative bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="relative bento-panel w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-raised">
                 <button
                     onClick={onClose}
-                    className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                    className="absolute top-4 right-4 icon-btn z-10"
                 >
                     <XCircle className="w-6 h-6" />
                 </button>
 
                 <div className="p-6">
-                    <h2 className="text-2xl font-bold mb-6">Crea Nuovo Evento</h2>
+                    <h2 className="text-2xl font-bold text-ink mb-6">Crea nuovo evento</h2>
 
                     {error && (
-                        <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                        <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-xl text-sm">
                             {error}
                         </div>
                     )}
 
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-ink-muted mb-1">
                                 Titolo *
                             </label>
                             <input
                                 type="text"
                                 value={formData.title}
                                 onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                className="input"
                                 required
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-ink-muted mb-1">
                                 Descrizione
                             </label>
                             <textarea
                                 value={formData.description}
                                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                className="input"
                                 rows={3}
                             />
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <label className="block text-sm font-medium text-ink-muted mb-1">
                                     Data/Ora Inizio *
                                 </label>
                                 <input
                                     type="datetime-local"
                                     value={formData.startTime || formatDateTimeLocal(defaultStart)}
                                     onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    className="input"
                                     required
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <label className="block text-sm font-medium text-ink-muted mb-1">
                                     Data/Ora Fine *
                                 </label>
                                 <input
                                     type="datetime-local"
                                     value={formData.endTime || formatDateTimeLocal(defaultEnd)}
                                     onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    className="input"
                                     required
                                 />
                             </div>
@@ -665,9 +666,9 @@ function CreateEventModal({ allUsers, currentUser, onClose, onSuccess }: any) {
                                 id="isCall"
                                 checked={formData.isCall}
                                 onChange={(e) => setFormData(prev => ({ ...prev, isCall: e.target.checked }))}
-                                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                className="w-4 h-4 rounded border-line/60 text-brand-500 focus:ring-brand-500/40"
                             />
-                            <label htmlFor="isCall" className="ml-2 text-sm font-medium text-gray-700 flex items-center gap-2">
+                            <label htmlFor="isCall" className="ml-2 text-sm font-medium text-ink-muted flex items-center gap-2">
                                 <Phone className="w-4 h-4" />
                                 È una Call (con inviti)
                             </label>
@@ -675,7 +676,7 @@ function CreateEventModal({ allUsers, currentUser, onClose, onSuccess }: any) {
 
                         {formData.isCall && (
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <label className="block text-sm font-medium text-ink-muted mb-1">
                                     Link per la Call *
                                 </label>
                                 <input
@@ -683,10 +684,10 @@ function CreateEventModal({ allUsers, currentUser, onClose, onSuccess }: any) {
                                     value={formData.callLink}
                                     onChange={(e) => setFormData(prev => ({ ...prev, callLink: e.target.value }))}
                                     placeholder="https://meet.google.com/xxx-xxxx-xxx o link Zoom, Teams, ecc."
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    className="input"
                                     required={formData.isCall}
                                 />
-                                <p className="text-xs text-gray-500 mt-1">
+                                <p className="text-xs text-ink-subtle mt-1">
                                     Inserisci il link per la videoconferenza (Google Meet, Zoom, Teams, ecc.)
                                 </p>
                             </div>
@@ -694,27 +695,27 @@ function CreateEventModal({ allUsers, currentUser, onClose, onSuccess }: any) {
 
                         {formData.isCall && (
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                <label className="block text-sm font-medium text-ink-muted mb-2">
                                     Invita Partecipanti
                                 </label>
-                                <div className="max-h-48 overflow-y-auto border border-gray-300 rounded-lg p-3 space-y-2">
+                                <div className="max-h-48 overflow-y-auto border border-line/60 rounded-xl p-3 space-y-2 bg-surface-inset/40">
                                     {allUsers
                                         .filter((u: any) => u.id !== currentUser?.id)
                                         .map((user: any) => (
                                             <label
                                                 key={user.id}
-                                                className="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer"
+                                                className="flex items-center p-2 hover:bg-surface-inset/60 rounded cursor-pointer"
                                             >
                                                 <input
                                                     type="checkbox"
                                                     checked={formData.participantIds.includes(user.id)}
                                                     onChange={() => handleToggleParticipant(user.id)}
-                                                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                                    className="w-4 h-4 rounded border-line/60 text-brand-500 focus:ring-brand-500/40"
                                                 />
                                                 <div className="ml-3">
-                                                    <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                                                    <div className="text-sm font-medium text-ink">{user.name}</div>
                                                     {user.email && (
-                                                        <div className="text-xs text-gray-500">{user.email}</div>
+                                                        <div className="text-xs text-ink-subtle">{user.email}</div>
                                                     )}
                                                 </div>
                                             </label>
@@ -727,14 +728,14 @@ function CreateEventModal({ allUsers, currentUser, onClose, onSuccess }: any) {
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                                className="btn-soft"
                             >
                                 Annulla
                             </button>
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                                className="btn-primary disabled:opacity-50"
                             >
                                 {loading ? 'Creazione...' : 'Crea Evento'}
                             </button>

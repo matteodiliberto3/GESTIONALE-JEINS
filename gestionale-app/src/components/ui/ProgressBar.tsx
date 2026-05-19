@@ -1,3 +1,7 @@
+import { motion } from 'framer-motion';
+import { TRANSITION } from '../../motion/presets';
+import { useReducedMotion } from '../../motion/useReducedMotion';
+
 interface ProgressBarProps {
     value: number;
     max?: number;
@@ -19,7 +23,9 @@ const heights = { thin: 'h-1', normal: 'h-1.5', thick: 'h-2.5' };
 export function ProgressBar({
     value, max = 100, tone = 'violet', showLabel = false, height = 'normal',
 }: ProgressBarProps) {
+    const reduced = useReducedMotion();
     const pct = Math.max(0, Math.min(100, (value / max) * 100));
+
     return (
         <div className="w-full">
             {showLabel && (
@@ -28,10 +34,12 @@ export function ProgressBar({
                     <span className="text-[11px] font-medium text-ink">{Math.round(pct)}%</span>
                 </div>
             )}
-            <div className={`w-full ${heights[height]} bg-surface-inset rounded-full overflow-hidden`}>
-                <div
-                    className={`${heights[height]} ${toneClass[tone]} rounded-full transition-all duration-500`}
-                    style={{ width: `${pct}%` }}
+            <div className={`progress-glass w-full ${heights[height]}`}>
+                <motion.div
+                    className={`${heights[height]} ${toneClass[tone]} progress-glass-fill rounded-full`}
+                    initial={false}
+                    animate={{ width: `${pct}%` }}
+                    transition={reduced ? { duration: 0 } : TRANSITION.slow}
                 />
             </div>
         </div>

@@ -58,6 +58,8 @@ export default {
         'soft':   '0 1px 2px rgba(0,0,0,.04), 0 8px 24px -8px rgba(0,0,0,.08)',
         'raised': '0 4px 12px -4px rgba(0,0,0,.18), 0 24px 48px -12px rgba(0,0,0,.25)',
         'glow-violet': '0 0 0 1px rgba(139,92,246,.35), 0 12px 32px -8px rgba(139,92,246,.45)',
+        'inner-glow': 'inset 0 1px 0 rgba(255,255,255,.06)',
+        'panel': '0 1px 2px rgba(0,0,0,.4), 0 20px 50px -20px rgba(0,0,0,.7)',
       },
       backgroundImage: {
         'grad-violet':  'linear-gradient(135deg,#8B5CF6 0%,#D946EF 100%)',

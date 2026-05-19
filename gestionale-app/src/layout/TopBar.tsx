@@ -1,5 +1,8 @@
 import { Search, Bell, NotebookPen, ChevronDown, LogOut } from 'lucide-react';
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { dropdown } from '../motion/variants';
+import { useReducedMotion } from '../motion/useReducedMotion';
 import { Avatar } from '../components/ui/Avatar';
 import type { User } from '../types/models';
 
@@ -22,7 +25,8 @@ const SEARCH_TARGETS = [
     { label: 'Notifiche', hint: 'Aggiornamenti recenti', view: 'notifiche' },
 ];
 
-export function TopBar({ user, onLogout, title, onNavigate, onQuickAction }: TopBarProps) {
+export function TopBar({ user, onLogout, onNavigate, onQuickAction }: TopBarProps) {
+    const reduced = useReducedMotion();
     const [menuOpen, setMenuOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [searchOpen, setSearchOpen] = useState(false);
@@ -53,11 +57,13 @@ export function TopBar({ user, onLogout, title, onNavigate, onQuickAction }: Top
     };
 
     return (
-        <header className="h-16 border-b border-line/60 bg-surface-raised/80 glass
-                           flex items-center justify-between px-4 md:px-6 gap-4 flex-shrink-0
-                           relative z-30">
-            <div className="flex-1 max-w-xl relative" ref={searchRef}>
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle pointer-events-none" />
+        <header className="h-16 border-b border-line/40 bg-surface-raised/40 glass
+                           grid grid-cols-1 lg:grid-cols-[1fr_minmax(0,28rem)_1fr] items-center
+                           px-4 md:px-6 gap-3 flex-shrink-0 relative z-30">
+            <div className="hidden lg:block" aria-hidden />
+
+            <div className="relative w-full max-w-md mx-auto lg:max-w-none lg:mx-0" ref={searchRef}>
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle pointer-events-none" />
                 <input
                     type="text"
                     value={query}
@@ -67,41 +73,41 @@ export function TopBar({ user, onLogout, title, onNavigate, onQuickAction }: Top
                         if (e.key === 'Enter' && results[0]) goTo(results[0].view);
                         if (e.key === 'Escape') setSearchOpen(false);
                     }}
-                    placeholder="Cerca task, progetti, persone…"
-                    className="input pl-10 pr-12 py-2.5"
+                    placeholder="Search"
+                    className="search-pill"
                 />
-                <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden md:inline-flex items-center
-                                px-1.5 py-0.5 rounded-md border border-line/70 bg-surface-inset
-                                text-[10px] font-medium text-ink-subtle">
-                    /
-                </kbd>
-                {searchOpen && (
-                    <div className="absolute left-0 right-0 top-full mt-2 card p-2 z-50 animate-fade-in">
-                        {results.length === 0 ? (
-                            <div className="px-3 py-2 text-xs text-ink-subtle">
-                                Nessun risultato. Prova con "clienti", "progetti" o "calendario".
-                            </div>
-                        ) : results.map(result => (
-                            <button
-                                key={result.view}
-                                type="button"
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => goTo(result.view)}
-                                className="w-full text-left px-3 py-2 rounded-lg hover:bg-surface-inset transition-colors"
-                            >
-                                <span className="block text-sm font-medium text-ink">{result.label}</span>
-                                <span className="block text-xs text-ink-subtle">{result.hint}</span>
-                            </button>
-                        ))}
-                    </div>
-                )}
+                <AnimatePresence>
+                    {searchOpen && (
+                        <motion.div
+                            className="absolute left-0 right-0 top-full mt-2 bento-panel p-2 z-50"
+                            variants={dropdown}
+                            initial="hidden"
+                            animate="show"
+                            exit="exit"
+                            transition={reduced ? { duration: 0 } : undefined}
+                        >
+                            {results.length === 0 ? (
+                                <div className="px-3 py-2 text-xs text-ink-subtle">
+                                    Nessun risultato.
+                                </div>
+                            ) : results.map(result => (
+                                <button
+                                    key={result.view}
+                                    type="button"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => goTo(result.view)}
+                                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-surface-inset/80 transition-colors"
+                                >
+                                    <span className="block text-sm font-medium text-ink">{result.label}</span>
+                                    <span className="block text-xs text-ink-subtle">{result.hint}</span>
+                                </button>
+                            ))}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
 
-            {title && (
-                <h1 className="hidden xl:block text-sm font-medium text-ink-muted">{title}</h1>
-            )}
-
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 sm:gap-1.5 justify-center lg:justify-end flex-shrink-0">
                 <button
                     className="icon-btn"
                     aria-label="Note"
@@ -121,7 +127,7 @@ export function TopBar({ user, onLogout, title, onNavigate, onQuickAction }: Top
                 <div className="relative" ref={ref}>
                     <button
                         onClick={() => setMenuOpen(o => !o)}
-                        className="flex items-center gap-2.5 pl-1.5 pr-2 py-1 rounded-xl hover:bg-surface-inset transition"
+                        className="flex items-center gap-2.5 pl-1.5 pr-2 py-1 rounded-xl hover:bg-surface-inset/60 transition"
                     >
                         <Avatar
                             name={user?.name || '?'}
@@ -138,13 +144,21 @@ export function TopBar({ user, onLogout, title, onNavigate, onQuickAction }: Top
                         <ChevronDown className="w-3.5 h-3.5 text-ink-subtle hidden sm:block" />
                     </button>
 
+                    <AnimatePresence>
                     {menuOpen && (
-                        <div className="absolute right-0 mt-2 w-56 card p-2 z-50 animate-fade-in">
+                        <motion.div
+                            className="absolute right-0 mt-2 w-56 bento-panel p-2 z-50"
+                            variants={dropdown}
+                            initial="hidden"
+                            animate="show"
+                            exit="exit"
+                            transition={reduced ? { duration: 0 } : undefined}
+                        >
                             <div className="px-3 py-2">
                                 <div className="text-sm font-medium text-ink">{user?.name}</div>
                                 <div className="text-xs text-ink-subtle">{user?.email}</div>
                             </div>
-                            <div className="border-t border-line/60 my-1" />
+                            <div className="border-t border-line/40 my-1" />
                             <button
                                 onClick={onLogout}
                                 className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-rose-400 hover:bg-rose-500/10"
@@ -152,8 +166,9 @@ export function TopBar({ user, onLogout, title, onNavigate, onQuickAction }: Top
                                 <LogOut className="w-4 h-4" />
                                 Esci
                             </button>
-                        </div>
+                        </motion.div>
                     )}
+                    </AnimatePresence>
                 </div>
             </div>
         </header>

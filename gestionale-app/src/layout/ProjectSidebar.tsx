@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
     Plus, MoreHorizontal, ChevronDown, ChevronRight,
     FolderKanban, Layers, Users, Sparkles, Compass, FlaskConical,
-    Share2,
+    Share2, Search,
 } from 'lucide-react';
 import type { Project } from '../types/models';
 
@@ -31,12 +31,23 @@ export function ProjectSidebar({
 
     return (
         <aside className="hidden lg:flex w-72 flex-shrink-0 flex-col
-                          bg-surface-raised border-r border-line/60 overflow-hidden">
+                          bg-surface-raised/80 border-r border-line/40 overflow-hidden backdrop-blur-xl">
             <div className="px-5 pt-5 pb-3 flex items-center justify-between">
                 <h2 className="text-base font-semibold text-ink">Projects</h2>
                 <button className="icon-btn" aria-label="More">
                     <MoreHorizontal className="w-4 h-4" />
                 </button>
+            </div>
+
+            <div className="px-5 pb-3">
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-subtle" />
+                    <input
+                        type="search"
+                        placeholder="Search"
+                        className="search-pill !py-2 !pl-9 !text-xs"
+                    />
+                </div>
             </div>
 
             <div className="px-5 pb-4 flex items-center gap-2 overflow-x-auto scrollbar-thin">

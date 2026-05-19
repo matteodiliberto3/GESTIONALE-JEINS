@@ -1,5 +1,8 @@
+import { motion } from 'framer-motion';
 import { Card } from '../ui/Card';
 import { TrendingUp, TrendingDown } from 'lucide-react';
+import { TRANSITION } from '../../motion/presets';
+import { useReducedMotion } from '../../motion/useReducedMotion';
 import type { Sprint } from '../../types/models';
 
 interface SprintVelocityProps {
@@ -12,6 +15,7 @@ interface SprintVelocityProps {
 export function SprintVelocity({
     sprint, avgPoints = 0, deltaPct = 0, history = [],
 }: SprintVelocityProps) {
+    const reduced = useReducedMotion();
     const target = sprint?.targetPoints || 0;
     const completed = sprint?.completedPoints || 0;
     const pct = target > 0 ? Math.min(100, (completed / target) * 100) : 0;
@@ -23,7 +27,7 @@ export function SprintVelocity({
     const maxHistory = Math.max(1, ...history.map(h => h.value));
 
     return (
-        <Card title="Sprint Velocity" subtitle={sprint?.name || 'Nessuno sprint attivo'}>
+        <Card variant="panel" title="Sprint Velocity" subtitle={sprint?.name || 'Nessuno sprint attivo'}>
             <div className="flex items-center justify-between gap-4">
                 <div className="relative flex-shrink-0">
                     <svg width={170} height={100} viewBox="0 0 170 100">
@@ -41,21 +45,28 @@ export function SprintVelocity({
                             fill="none"
                             strokeLinecap="round"
                         />
-                        <path
+                        <motion.path
                             d={`M 15 90 A ${radius} ${radius} 0 0 1 155 90`}
                             stroke="url(#velocity-grad)"
                             strokeWidth={12}
                             fill="none"
                             strokeLinecap="round"
                             strokeDasharray={circ}
-                            strokeDashoffset={offset}
-                            style={{ transition: 'stroke-dashoffset 800ms ease-out' }}
+                            initial={false}
+                            animate={{ strokeDashoffset: offset }}
+                            transition={reduced ? { duration: 0 } : TRANSITION.slow}
                         />
                     </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-end pb-1">
-                        <span className="text-2xl font-bold text-ink">{avgPoints.toFixed(2)}</span>
-                        <span className="text-[10px] uppercase tracking-wider text-ink-subtle">Avg story points</span>
-                    </div>
+                    <motion.div
+                        className="absolute inset-0 flex flex-col items-center justify-end pb-1"
+                        key={deltaPct}
+                        initial={reduced ? false : { opacity: 0.7, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={TRANSITION.fast}
+                    >
+                        <span className="text-3xl font-bold text-ink tabular-nums">{deltaPct}%</span>
+                        <span className="text-[10px] uppercase tracking-wider text-ink-subtle">Sprint velocity</span>
+                    </motion.div>
                 </div>
 
                 <div className="flex flex-col items-end gap-1">
@@ -64,7 +75,7 @@ export function SprintVelocity({
                         {isUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                         {Math.abs(deltaPct).toFixed(0)}%
                     </span>
-                    <span className="text-[11px] text-ink-subtle">vs sprint precedente</span>
+                    <span className="text-[11px] text-ink-subtle">{avgPoints.toFixed(2)} avg pts</span>
                 </div>
             </div>
 
@@ -74,7 +85,13 @@ export function SprintVelocity({
                         const barH = (h.value / maxHistory) * 100;
                         return (
                             <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                                <div className="w-full rounded-t-md bg-grad-violet/80" style={{ height: `${barH}%` }} />
+                                <motion.div
+                                    className="w-full rounded-t-md bg-grad-violet/80 origin-bottom"
+                                    initial={reduced ? false : { scaleY: 0 }}
+                                    animate={{ scaleY: 1, height: `${barH}%` }}
+                                    transition={{ ...TRANSITION.normal, delay: i * 0.04 }}
+                                    style={{ height: `${barH}%` }}
+                                />
                                 <span className="text-[9px] text-ink-subtle uppercase">{h.label}</span>
                             </div>
                         );

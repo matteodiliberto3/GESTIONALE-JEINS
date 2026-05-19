@@ -8,13 +8,14 @@ interface CardProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title'> {
     headerAction?: ReactNode;
     padding?: 'none' | 'sm' | 'md' | 'lg';
     bodyClassName?: string;
+    variant?: 'default' | 'panel';
 }
 
 const paddingMap = { none: 'p-0', sm: 'p-3', md: 'p-4', lg: 'p-6' };
 
 export function Card({
     title, subtitle, actions, headerAction, padding = 'md',
-    bodyClassName = '', className = '', children, ...rest
+    bodyClassName = '', className = '', variant = 'default', children, ...rest
 }: CardProps) {
     const notify = (action: string) => {
         window.dispatchEvent(new CustomEvent('app:notice', {
@@ -23,11 +24,11 @@ export function Card({
     };
 
     return (
-        <div className={`card ${className}`} {...rest}>
+        <div className={`${variant === 'panel' ? 'bento-panel' : 'card'} h-full ${className}`} {...rest}>
             {(title || actions) && (
-                <div className="flex items-start justify-between px-4 pt-4">
+                <div className="flex items-start justify-between px-5 pt-5">
                     <div>
-                        {title && <h3 className="text-sm font-semibold text-ink">{title}</h3>}
+                        {title && <h3 className="text-sm font-semibold text-ink tracking-tight">{title}</h3>}
                         {subtitle && <p className="text-xs text-ink-subtle mt-0.5">{subtitle}</p>}
                     </div>
                     <div className="flex items-center gap-1">

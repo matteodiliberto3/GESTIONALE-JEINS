@@ -24,7 +24,7 @@ export function AppShell({
     onQuickAction, title, children,
 }: AppShellProps) {
     return (
-        <div className="h-screen flex bg-surface text-ink overflow-hidden">
+        <div className="h-screen flex bg-[#0a0a0a] text-ink overflow-hidden">
             <IconRail activeView={activeView} setActiveView={setActiveView} />
             <ProjectSidebar
                 projects={projects}
@@ -42,7 +42,7 @@ export function AppShell({
                     onNavigate={setActiveView}
                     onQuickAction={onQuickAction}
                 />
-                <main className="flex-1 overflow-y-auto bg-surface-sunken/40 px-4 md:px-6 lg:px-8 py-5">
+                <main className="dashboard-canvas flex-1 overflow-y-auto px-4 md:px-6 lg:px-8 py-5">
                     {children}
                 </main>
             </div>
