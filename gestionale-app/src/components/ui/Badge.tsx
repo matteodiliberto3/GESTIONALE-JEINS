@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 type Tone = 'violet' | 'cyan' | 'pink' | 'emerald' | 'amber' | 'rose' | 'neutral';
 
-interface BadgeProps {
+export interface BadgeProps {
     children: ReactNode;
     tone?: Tone;
     dot?: boolean;
