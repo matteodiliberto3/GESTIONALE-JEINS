@@ -63,7 +63,17 @@ export function createApp() {
     app.use(requestBodyLog);
     app.use('/api', apiLimiter);
 
-    app.get('/health', async (req, res) => {
+    function parseDatabaseUrlUser() {
+        const raw = process.env.DATABASE_URL;
+        if (!raw) return null;
+        try {
+            return new URL(raw.replace(/^postgresql:/, 'http:')).username || null;
+        } catch {
+            return null;
+        }
+    }
+
+    async function healthHandler(req, res) {
         let dbStatus = 'ok';
         let dbError = null;
         try {
@@ -73,9 +83,16 @@ export function createApp() {
             dbError = error.message;
         }
         const response = { status: 'OK', db: dbStatus, timestamp: new Date().toISOString() };
-        if (dbError) response.dbError = dbError;
+        if (dbError) {
+            response.dbError = dbError;
+            response.dbUserFromUrl = parseDatabaseUrlUser();
+        }
         res.json(response);
-    });
+    }
+
+    // Pubblico, senza JWT. /api/health non deve passare da router /api con auth (es. messages).
+    app.get('/health', healthHandler);
+    app.get('/api/health', healthHandler);
 
     app.get('/', (req, res) => {
         res.status(200).json({ status: 'online', message: 'Gestionale JEINS API is running' });

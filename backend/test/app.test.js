@@ -15,8 +15,15 @@ describe('app', () => {
 
     it('GET /health risponde', async () => {
         const res = await request(app).get('/health');
-        assert.ok([200, 500].includes(res.status));
+        assert.equal(res.status, 200);
         assert.ok(res.body.status);
+    });
+
+    it('GET /api/health risponde senza token', async () => {
+        const res = await request(app).get('/api/health');
+        assert.equal(res.status, 200);
+        assert.equal(res.body.status, 'OK');
+        assert.ok('db' in res.body);
     });
 
     it('GET / risponde online', async () => {

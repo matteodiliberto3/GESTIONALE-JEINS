@@ -18,6 +18,19 @@ const pool = new Pool({
 
 const isTest = process.env.NODE_ENV === 'test';
 
+if (!isTest && process.env.DATABASE_URL) {
+    try {
+        const u = new URL(process.env.DATABASE_URL.replace(/^postgresql:/, 'http:'));
+        console.log(
+            `DB target: host=${u.hostname} port=${u.port || '5432'} user=${u.username} database=${u.pathname}`,
+        );
+    } catch {
+        console.warn('DATABASE_URL presente ma non parsabile come URL');
+    }
+} else if (!isTest && !process.env.DATABASE_URL) {
+    console.warn('DATABASE_URL non impostata');
+}
+
 pool.on('connect', () => {
     if (!isTest) console.log('✅ Connesso al database PostgreSQL');
 });
