@@ -2,20 +2,18 @@ import express from 'express';
 import pool from '../database/connection.js';
 import bcrypt from 'bcrypt';
 import { authenticateToken } from '../middleware/auth.js';
+import { requireRoles } from '../middleware/authorize.js';
+import { isPrivileged as roleIsPrivileged } from '../lib/roles.js';
+import { getPermissionsForUser } from '../lib/permissions.js';
 
 const router = express.Router();
 router.use(authenticateToken);
 
-const isAdminOrIT = (req, res, next) => {
-    if (['Admin', 'IT', 'Responsabile'].includes(req.user.role)) return next();
-    return res.status(403).json({ error: 'Accesso negato. Solo Admin/IT Manager possono accedere.' });
-};
-
-const isPrivileged = (role) => ['Admin', 'IT', 'Responsabile'].includes(role);
+const isAdminOrIT = requireRoles('Admin', 'IT', 'Responsabile');
 
 router.get('/', async (req, res) => {
     try {
-        const query = isPrivileged(req.user.role)
+        const query = roleIsPrivileged(req.user.role)
             ? `SELECT user_id as id, name, email, area, role, is_active as "isActive",
                       avatar_url as "avatarUrl", handle, color, last_seen as "lastSeen",
                       created_at as "createdAt"
@@ -41,7 +39,8 @@ router.get('/me', async (req, res) => {
             [req.user.userId],
         );
         if (!result.rows.length) return res.status(404).json({ error: 'Utente non trovato' });
-        res.json(result.rows[0]);
+        const row = result.rows[0];
+        res.json({ ...row, permissions: getPermissionsForUser(row) });
     } catch (error) {
         console.error('Errore /me:', error);
         res.status(500).json({ error: 'Errore interno del server' });
@@ -179,7 +178,7 @@ router.patch('/:id/status', isAdminOrIT, async (req, res) => {
 router.get('/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        if (id !== req.user.userId && !isPrivileged(req.user.role)) {
+        if (id !== req.user.userId && !roleIsPrivileged(req.user.role)) {
             return res.status(403).json({ error: 'Non hai i permessi per vedere questi dati' });
         }
         const result = await pool.query(

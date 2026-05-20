@@ -33,3 +33,7 @@ Thumbs.db
 coverage/
 .cache/
 *.tsbuildinfo
+
+# Vite
+**/.vite/
+gestionale-app/node_modules/.vite/

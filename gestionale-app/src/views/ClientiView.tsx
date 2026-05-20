@@ -1,8 +1,9 @@
-import { Trash2, Mail, Phone, Plus } from 'lucide-react';
+import { Trash2, Mail, Phone, Plus, Pencil } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Avatar } from '../components/ui/Avatar';
 import type { Client } from '../types/models';
+import { openNotice } from '../utils/notice';
 
 const CLIENT_STATUS_OPTIONS = ['Prospect', 'In Contatto', 'In Negoziazione', 'Attivo', 'Chiuso', 'Perso'];
 
@@ -18,11 +19,12 @@ const statusTone: Record<string, 'violet' | 'cyan' | 'pink' | 'emerald' | 'amber
 interface ClientiViewProps {
     clients: Client[];
     onUpdateStatus: (id: string, status: string) => void;
+    onEdit: (client: Client) => void;
     onDelete: (id: string) => void;
     onOpenAdd: () => void;
 }
 
-export function ClientiView({ clients, onUpdateStatus, onDelete, onOpenAdd }: ClientiViewProps) {
+export function ClientiView({ clients, onUpdateStatus, onEdit, onDelete, onOpenAdd }: ClientiViewProps) {
     return (
         <Card
             title={`Clienti (${clients.length})`}
@@ -57,12 +59,7 @@ export function ClientiView({ clients, onUpdateStatus, onDelete, onOpenAdd }: Cl
                         {clients.map(c => (
                             <tr
                                 key={c.id}
-                                onClick={() => window.dispatchEvent(new CustomEvent('app:notice', {
-                                    detail: {
-                                        title: c.name,
-                                        message: 'Scheda cliente selezionata. Qui potrai aprire dettaglio, contatti e storico progetti.',
-                                    },
-                                }))}
+                                onClick={() => openNotice(c.name, 'Scheda cliente: dettaglio e storico progetti in arrivo.')}
                                 className="border-b border-line/40 hover:bg-surface-inset/40 transition cursor-pointer"
                             >
                                 <td className="px-5 py-3">
@@ -103,13 +100,22 @@ export function ClientiView({ clients, onUpdateStatus, onDelete, onOpenAdd }: Cl
                                     </select>
                                 </td>
                                 <td className="px-5 py-3 text-right">
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); onDelete(c.id); }}
-                                        className="icon-btn text-rose-400 hover:bg-rose-500/10"
-                                        aria-label="Elimina"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
+                                    <div className="flex justify-end gap-1">
+                                        <button
+                                            onClick={() => onEdit(c)}
+                                            className="icon-btn text-ink-muted hover:text-brand-300"
+                                            aria-label="Modifica"
+                                        >
+                                            <Pencil className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => onDelete(c.id)}
+                                            className="icon-btn text-rose-400 hover:bg-rose-500/10"
+                                            aria-label="Elimina"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         ))}

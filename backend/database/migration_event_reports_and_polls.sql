@@ -17,8 +17,9 @@ CREATE TABLE IF NOT EXISTS event_reports (
 CREATE INDEX IF NOT EXISTS idx_event_reports_event_id ON event_reports(event_id);
 CREATE INDEX IF NOT EXISTS idx_event_reports_creator_user_id ON event_reports(creator_user_id);
 
--- Trigger per aggiornare updated_at
-CREATE TRIGGER update_event_reports_updated_at BEFORE UPDATE ON event_reports
+DROP TRIGGER IF EXISTS update_event_reports_updated_at ON event_reports;
+CREATE TRIGGER update_event_reports_updated_at
+    BEFORE UPDATE ON event_reports
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Commenti per documentazione
@@ -45,16 +46,17 @@ CREATE INDEX IF NOT EXISTS idx_scheduling_polls_creator_user_id ON scheduling_po
 CREATE INDEX IF NOT EXISTS idx_scheduling_polls_status ON scheduling_polls(status);
 CREATE INDEX IF NOT EXISTS idx_scheduling_polls_final_event_id ON scheduling_polls(final_event_id);
 
--- Trigger per aggiornare updated_at
-CREATE TRIGGER update_scheduling_polls_updated_at BEFORE UPDATE ON scheduling_polls
+DROP TRIGGER IF EXISTS update_scheduling_polls_updated_at ON scheduling_polls;
+CREATE TRIGGER update_scheduling_polls_updated_at
+    BEFORE UPDATE ON scheduling_polls
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Commenti per documentazione
 COMMENT ON TABLE scheduling_polls IS 'Sondaggi di disponibilità per organizzare eventi';
-COMMENT ON COLUMN scheduling_polls.duration_minutes IS 'Durata prevista dell\'evento in minuti';
+COMMENT ON COLUMN scheduling_polls.duration_minutes IS 'Durata prevista dell''evento in minuti';
 COMMENT ON COLUMN scheduling_polls.invitation_rules IS 'Regole di invito (stesso formato di events.invitation_rules)';
 COMMENT ON COLUMN scheduling_polls.status IS 'open = sondaggio attivo, closed = evento creato';
-COMMENT ON COLUMN scheduling_polls.final_event_id IS 'Link all\'evento finale creato da questo sondaggio';
+COMMENT ON COLUMN scheduling_polls.final_event_id IS 'Link all''evento finale creato da questo sondaggio';
 
 -- ============================================
 -- 3. TABELLA POLL_TIME_SLOTS (Slot Temporali)

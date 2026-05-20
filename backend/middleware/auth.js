@@ -1,41 +1,80 @@
-import jwt from 'jsonwebtoken';
 import pool from '../database/connection.js';
+import { extractBearerOrCookie } from '../lib/authCookies.js';
+import { verifyAccessToken, verifyAnyAccessToken } from '../lib/tokens.js';
 
-export const authenticateToken = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+const LAST_SEEN_INTERVAL_MS = 60_000;
+const lastSeenUpdatedAt = new Map();
 
-    if (!token) {
-        return res.status(401).json({ error: 'Token di autenticazione mancante' });
+async function touchLastSeen(userId) {
+    const now = Date.now();
+    const prev = lastSeenUpdatedAt.get(userId) || 0;
+    if (now - prev < LAST_SEEN_INTERVAL_MS) return;
+    lastSeenUpdatedAt.set(userId, now);
+    await pool.query('UPDATE users SET last_seen = NOW() WHERE user_id = $1', [userId]);
+}
+
+async function loadUser(decoded) {
+    const result = await pool.query(
+        `SELECT user_id, email, role, area, is_active
+         FROM users WHERE user_id = $1`,
+        [decoded.userId],
+    );
+    if (!result.rows.length) return null;
+    const dbUser = result.rows[0];
+    if (dbUser.is_active === false) return null;
+    return {
+        userId: dbUser.user_id,
+        email: dbUser.email,
+        role: dbUser.role,
+        area: dbUser.area,
+    };
+}
+
+function verifyTokenString(token) {
+    try {
+        return verifyAccessToken(token);
+    } catch {
+        return verifyAnyAccessToken(token);
     }
+}
 
-    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-        if (err) {
+export const authenticateToken = async (req, res, next) => {
+    try {
+        const token = extractBearerOrCookie(req);
+        if (!token) {
+            return res.status(401).json({ error: 'Token di autenticazione mancante' });
+        }
+
+        const decoded = verifyTokenString(token);
+        const user = await loadUser(decoded);
+        if (!user) {
+            return res.status(403).json({ error: 'Utente non trovato o disattivato' });
+        }
+
+        req.user = user;
+        touchLastSeen(user.userId).catch((err) =>
+            console.error('Errore aggiornamento last_seen:', err),
+        );
+        next();
+    } catch (err) {
+        if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
             return res.status(403).json({ error: 'Token non valido o scaduto' });
         }
-        req.user = user;
-        
-        // Aggiorna last_seen in modo asincrono (non blocca la risposta)
-        if (user.userId) {
-            pool.query('UPDATE users SET last_seen = NOW() WHERE user_id = $1', [user.userId])
-                .catch(err => console.error('Errore aggiornamento last_seen:', err));
-        }
-        
-        next();
-    });
+        console.error('Errore autenticazione:', err);
+        return res.status(500).json({ error: 'Errore interno del server' });
+    }
 };
 
-export const optionalAuth = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+export const optionalAuth = async (req, res, next) => {
+    const token = extractBearerOrCookie(req);
+    if (!token) return next();
 
-    if (token) {
-        jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-            if (!err) {
-                req.user = user;
-            }
-        });
+    try {
+        const decoded = verifyTokenString(token);
+        const user = await loadUser(decoded);
+        if (user) req.user = user;
+    } catch {
+        /* opzionale */
     }
     next();
 };
-

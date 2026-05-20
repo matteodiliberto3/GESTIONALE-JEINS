@@ -17,7 +17,7 @@ interface AdminPanelProps {
     user: any;
 }
 
-export default function AdminPanel({}: AdminPanelProps) {
+export default function AdminPanel({ user: _user }: AdminPanelProps) {
     const [activeTab, setActiveTab] = useState<'users' | 'health' | 'mock' | 'online'>('users');
     const [users, setUsers] = useState<any[]>([]);
     const [onlineUsers, setOnlineUsers] = useState<any[]>([]);

@@ -1,26 +1,17 @@
 import React, { useState } from 'react';
 import { authAPI } from '../services/api.ts';
 import { LogIn, UserPlus, Mail, Lock, AlertCircle, User, Sparkles } from 'lucide-react';
-import { ThemeProvider } from '../theme/ThemeProvider';
-
 interface LoginProps {
     onLoginSuccess: (user: any, token?: string) => void;
 }
 
-export default function Login(props: LoginProps) {
-    return (
-        <ThemeProvider>
-            <LoginInner {...props} />
-        </ThemeProvider>
-    );
-}
-
-function LoginInner({ onLoginSuccess }: LoginProps) {
+export default function Login({ onLoginSuccess }: LoginProps) {
     const [isLogin, setIsLogin] = useState(true);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [name, setName] = useState('');
     const [area, setArea] = useState('Marketing');
+    const [managerCode, setManagerCode] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -37,7 +28,13 @@ function LoginInner({ onLoginSuccess }: LoginProps) {
                 onLoginSuccess(response.user, response.token);
             } else {
                 if (!name) { setError('Il nome è obbligatorio'); setLoading(false); return; }
-                const response = await authAPI.register({ name, email, password, area });
+                const response = await authAPI.register({
+                    name,
+                    email,
+                    password,
+                    area,
+                    ...(managerCode.trim() ? { managerCode: managerCode.trim() } : {}),
+                });
                 localStorage.setItem('token', response.token);
                 localStorage.setItem('user', JSON.stringify(response.user));
                 onLoginSuccess(response.user, response.token);
@@ -56,7 +53,7 @@ function LoginInner({ onLoginSuccess }: LoginProps) {
             <div className="relative w-full max-w-md">
                 <div className="card p-8 backdrop-blur-xl bg-surface-raised/80">
                     <div className="flex items-center gap-3 mb-1">
-                        <div className="w-10 h-10 rounded-xl bg-grad-violet shadow-glow-violet flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-xl bg-grad-brand shadow-glow-brand flex items-center justify-center">
                             <span className="text-white font-bold text-lg">G</span>
                         </div>
                         <div>
@@ -132,6 +129,17 @@ function LoginInner({ onLoginSuccess }: LoginProps) {
                             </div>
                         )}
 
+                        {!isLogin && (
+                            <Field
+                                icon={<Lock className="w-4 h-4" />}
+                                type="password"
+                                placeholder="Solo se hai un codice CDA/Manager"
+                                label="Codice accesso CDA / Manager (opzionale)"
+                                value={managerCode}
+                                onChange={setManagerCode}
+                            />
+                        )}
+
                         <button
                             type="submit"
                             disabled={loading}
@@ -150,8 +158,8 @@ function LoginInner({ onLoginSuccess }: LoginProps) {
                     <div className="mt-6 text-center">
                         <button
                             type="button"
-                            onClick={() => { setIsLogin(!isLogin); setError(''); }}
-                            className="text-sm text-brand-300 hover:text-brand-200 font-medium"
+                            onClick={() => { setIsLogin(!isLogin); setError(''); setManagerCode(''); }}
+                            className="text-sm text-brand-400 hover:text-brand-300 font-medium"
                         >
                             {isLogin
                                 ? 'Non hai un account? Registrati'

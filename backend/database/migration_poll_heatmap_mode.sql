@@ -54,4 +54,4 @@ CREATE INDEX IF NOT EXISTS idx_open_availability_votes_slot
     ON open_availability_votes(slot_start_time);
 
 COMMENT ON TABLE open_availability_votes IS 'Disponibilità granulari per sondaggi open_availability (heatmap)';
-COMMENT ON COLUMN open_availability_votes.slot_start_time IS 'Inizio dello slot disponibile scelto dall\'utente';
+COMMENT ON COLUMN open_availability_votes.slot_start_time IS 'Inizio dello slot disponibile scelto dall''utente';

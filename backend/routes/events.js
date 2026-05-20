@@ -1,6 +1,8 @@
 import express from 'express';
 import pool from '../database/connection.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { isSocio, isPrivileged } from '../lib/roles.js';
+import { requireNotSocio } from '../middleware/authorize.js';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -108,20 +110,19 @@ router.get('/', async (req, res) => {
         const { startDate, endDate, isCall } = req.query;
 
         let query = `
-            SELECT e.event_id as id, e.title, e.description, 
+            SELECT e.event_id as id, e.title, e.description,
                    e.start_time as "startTime", e.end_time as "endTime",
                    e.is_call as "isCall", e.call_link as "callLink",
-                   e.event_type as "eventType", e.event_subtype as "eventSubtype",
-                   e.area, e.client_id as "clientId",
-                   e.recurrence_type as "recurrenceType",
-                   e.recurrence_end_date as "recurrenceEndDate",
+                   NULL::text as "eventType", NULL::text as "eventSubtype",
+                   NULL::text as area, NULL::uuid as "clientId",
+                   NULL::text as "recurrenceType",
+                   NULL::date as "recurrenceEndDate",
                    e.creator_id as "creatorId",
-                   e.version,
+                   1 as version,
                    u.name as "creatorName", e.created_at as "createdAt",
-                   c.name as "clientName"
+                   NULL::text as "clientName"
             FROM events e
             LEFT JOIN users u ON e.creator_id = u.user_id
-            LEFT JOIN clients c ON e.client_id = c.client_id
             WHERE 1=1
         `;
         const params = [];
@@ -142,6 +143,15 @@ router.get('/', async (req, res) => {
         if (isCall !== undefined) {
             query += ` AND e.is_call = $${paramIndex}`;
             params.push(isCall === 'true');
+            paramIndex++;
+        }
+
+        if (isSocio(req.user.role)) {
+            query += ` AND EXISTS (
+                SELECT 1 FROM participants p2
+                WHERE p2.event_id = e.event_id AND p2.user_id = $${paramIndex}
+            )`;
+            params.push(req.user.userId);
             paramIndex++;
         }
 
@@ -177,26 +187,35 @@ router.get('/:id', async (req, res) => {
         const { id } = req.params;
 
         const eventResult = await pool.query(
-            `SELECT e.event_id as id, e.title, e.description, 
+            `SELECT e.event_id as id, e.title, e.description,
                     e.start_time as "startTime", e.end_time as "endTime",
                     e.is_call as "isCall", e.call_link as "callLink",
-                    e.event_type as "eventType", e.event_subtype as "eventSubtype",
-                    e.area, e.client_id as "clientId",
-                    e.recurrence_type as "recurrenceType",
-                    e.recurrence_end_date as "recurrenceEndDate",
+                    NULL::text as "eventType", NULL::text as "eventSubtype",
+                    NULL::text as area, NULL::uuid as "clientId",
+                    NULL::text as "recurrenceType",
+                    NULL::date as "recurrenceEndDate",
                     e.creator_id as "creatorId",
-                    e.version,
+                    1 as version,
                     u.name as "creatorName", e.created_at as "createdAt",
-                    c.name as "clientName"
+                    NULL::text as "clientName"
              FROM events e
              LEFT JOIN users u ON e.creator_id = u.user_id
-             LEFT JOIN clients c ON e.client_id = c.client_id
              WHERE e.event_id = $1`,
             [id]
         );
 
         if (eventResult.rows.length === 0) {
             return res.status(404).json({ error: 'Evento non trovato' });
+        }
+
+        if (isSocio(req.user.role)) {
+            const part = await pool.query(
+                'SELECT 1 FROM participants WHERE event_id = $1 AND user_id = $2',
+                [id, req.user.userId],
+            );
+            if (!part.rows.length) {
+                return res.status(403).json({ error: 'Evento non invitato al tuo profilo' });
+            }
         }
 
         const participantsResult = await pool.query(
@@ -238,7 +257,7 @@ router.get('/:id/participants', async (req, res) => {
 });
 
 // POST /api/events - Crea nuovo evento (con supporto per tipi, regole di invito e ricorrenza)
-router.post('/', async (req, res) => {
+router.post('/', requireNotSocio, async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
@@ -439,14 +458,14 @@ router.put('/:id', async (req, res) => {
                 // Versione non corrisponde - conflitto di modifica
                 // Recupera i dati attuali del server per il merge
                 const serverData = await pool.query(
-                    `SELECT e.event_id as id, e.title, e.description, 
+                    `SELECT e.event_id as id, e.title, e.description,
                             e.start_time as "startTime", e.end_time as "endTime",
                             e.is_call as "isCall", e.call_link as "callLink",
-                            e.event_type as "eventType", e.event_subtype as "eventSubtype",
-                            e.area, e.client_id as "clientId",
-                            e.recurrence_type as "recurrenceType",
-                            e.recurrence_end_date as "recurrenceEndDate",
-                            e.version
+                            NULL::text as "eventType", NULL::text as "eventSubtype",
+                            NULL::text as area, NULL::uuid as "clientId",
+                            NULL::text as "recurrenceType",
+                            NULL::date as "recurrenceEndDate",
+                            1 as version
                      FROM events e
                      WHERE e.event_id = $1`,
                     [id]
@@ -535,7 +554,7 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
-// POST /api/events/:id/rsvp - RSVP (Accetta/Rifiuta invito)
+// POST /api/events/:id/rsvp - RSVP / presenza call (Accetta/Rifiuta)
 router.post('/:id/rsvp', async (req, res) => {
     try {
         const { id } = req.params;
@@ -545,9 +564,8 @@ router.post('/:id/rsvp', async (req, res) => {
             return res.status(400).json({ error: 'Stato deve essere "accepted" o "declined"' });
         }
 
-        // Verifica che l'evento esista
         const eventResult = await pool.query(
-            'SELECT event_id FROM events WHERE event_id = $1',
+            'SELECT event_id, is_call FROM events WHERE event_id = $1',
             [id]
         );
 
@@ -555,7 +573,10 @@ router.post('/:id/rsvp', async (req, res) => {
             return res.status(404).json({ error: 'Evento non trovato' });
         }
 
-        // Verifica se esiste già un partecipante
+        if (isSocio(req.user.role) && !eventResult.rows[0].is_call) {
+            return res.status(403).json({ error: 'Puoi segnare la presenza solo alle call' });
+        }
+
         const existingParticipant = await pool.query(
             'SELECT participant_id FROM participants WHERE event_id = $1 AND user_id = $2',
             [id, req.user.userId]
@@ -599,21 +620,20 @@ router.post('/:id/rsvp', async (req, res) => {
 router.get('/my/upcoming', async (req, res) => {
     try {
         const result = await pool.query(
-            `SELECT e.event_id as id, e.title, e.description, 
+            `SELECT e.event_id as id, e.title, e.description,
                     e.start_time as "startTime", e.end_time as "endTime",
                     e.is_call as "isCall", e.call_link as "callLink",
-                    e.event_type as "eventType", e.event_subtype as "eventSubtype",
-                    e.area, e.client_id as "clientId",
-                    e.recurrence_type as "recurrenceType",
-                    e.recurrence_end_date as "recurrenceEndDate",
+                    NULL::text as "eventType", NULL::text as "eventSubtype",
+                    NULL::text as area, NULL::uuid as "clientId",
+                    NULL::text as "recurrenceType",
+                    NULL::date as "recurrenceEndDate",
                     e.creator_id as "creatorId",
-                    e.version,
+                    1 as version,
                     u.name as "creatorName", p.status as "myStatus",
-                    c.name as "clientName"
+                    NULL::text as "clientName"
              FROM events e
              JOIN participants p ON e.event_id = p.event_id
              LEFT JOIN users u ON e.creator_id = u.user_id
-             LEFT JOIN clients c ON e.client_id = c.client_id
              WHERE p.user_id = $1 AND e.start_time > NOW()
              ORDER BY e.start_time ASC`,
             [req.user.userId]

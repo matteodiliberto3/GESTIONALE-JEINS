@@ -16,7 +16,7 @@ const sizeMap = {
     lg: 'w-12 h-12 text-base',
 };
 
-const palette = ['#8B5CF6', '#EC4899', '#22D3EE', '#10B981', '#F59E0B', '#F43F5E', '#D946EF'];
+const palette = ['#1a7a55', '#3ba876', '#145c42', '#5fc494', '#0f3d2e', '#238f63', '#041f17'];
 
 function hashColor(name = '?') {
     let h = 0;

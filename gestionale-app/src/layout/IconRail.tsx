@@ -1,10 +1,13 @@
 import {
-    LayoutGrid, FolderKanban, Users, Wallet, CalendarDays,
-    Inbox, BarChart3, Bell, Settings, HelpCircle,
-    Sun, Moon,
+    LayoutGrid, FolderOpen, FileText, PieChart,
+    MessageSquare, Cloud, CalendarDays, Settings,
+    Sun, Moon, ListTodo,
 } from 'lucide-react';
 import { LayoutGroup, motion } from 'framer-motion';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../theme/ThemeProvider';
+import { useAuth } from '../app/AuthProvider';
+import { resolvePermissions, type UserPermissions } from '../lib/permissions';
 import { SPRING } from '../motion/presets';
 import { useReducedMotion } from '../motion/useReducedMotion';
 
@@ -13,20 +16,31 @@ interface IconRailProps {
     setActiveView: (view: string) => void;
 }
 
-const TOP_ITEMS = [
-    { id: 'dashboard',   icon: LayoutGrid,    label: 'Dashboard' },
-    { id: 'clienti',     icon: Users,         label: 'Clienti' },
-    { id: 'progetti',    icon: FolderKanban,  label: 'Progetti' },
-    { id: 'contabilita', icon: Wallet,        label: 'Contabilità' },
-    { id: 'calendario',  icon: CalendarDays,  label: 'Calendario' },
-    { id: 'inbox',       icon: Inbox,         label: 'Inbox' },
-    { id: 'reports',     icon: BarChart3,     label: 'Reports' },
-    { id: 'notifiche',   icon: Bell,          label: 'Notifiche' },
+const VIEW_PATHS: Record<string, string> = {
+    clienti: '/clienti',
+    dashboard: '/dashboard',
+    progetti: '/progetti',
+    reports: '/reports',
+    calendario: '/calendario',
+    inbox: '/inbox',
+    contabilita: '/contabilita',
+    tasks: '/tasks',
+    settings: '/settings',
+};
+
+const TOP_ITEMS: { id: string; icon: typeof LayoutGrid; label: string; perm: keyof UserPermissions }[] = [
+    { id: 'clienti',     icon: LayoutGrid,    label: 'Clienti',       perm: 'viewClients' },
+    { id: 'dashboard',   icon: FolderOpen,    label: 'Dashboard',     perm: 'viewDashboard' },
+    { id: 'progetti',    icon: FileText,      label: 'Progetti',      perm: 'viewProjects' },
+    { id: 'tasks',       icon: ListTodo,      label: 'I miei lavori', perm: 'viewMyTasks' },
+    { id: 'reports',     icon: PieChart,      label: 'Report',        perm: 'viewReports' },
+    { id: 'calendario',  icon: CalendarDays,  label: 'Scadenze',      perm: 'viewCalendar' },
+    { id: 'inbox',       icon: MessageSquare, label: 'Inbox',         perm: 'viewInbox' },
+    { id: 'contabilita', icon: Cloud,         label: 'Fatturato',     perm: 'viewBilling' },
 ];
 
 const BOTTOM_ITEMS = [
-    { id: 'help',     icon: HelpCircle, label: 'Help' },
-    { id: 'settings', icon: Settings,   label: 'Impostazioni' },
+    { id: 'settings', icon: Settings, label: 'Impostazioni' },
 ];
 
 function RailButton({
@@ -51,34 +65,47 @@ function RailButton({
             {active && !reduced && (
                 <motion.span
                     layoutId="rail-active"
-                    className="absolute inset-0 rounded-xl bg-brand-500/15 border border-brand-500/25"
+                    className="absolute inset-0 rounded-xl bg-grad-brand shadow-glow-brand"
                     transition={SPRING.snap}
                 />
             )}
-            <Icon className="w-5 h-5 relative z-10" />
+            {active && reduced && (
+                <span className="absolute inset-0 rounded-xl bg-grad-brand shadow-glow-brand" />
+            )}
+            <Icon className={`w-[18px] h-[18px] relative z-10 ${active ? 'text-white' : ''}`} />
         </button>
     );
 }
 
 export function IconRail({ activeView, setActiveView }: IconRailProps) {
+    const { user } = useAuth();
+    const permissions = resolvePermissions(user);
+    const navItems = TOP_ITEMS.filter(item => permissions[item.perm]);
     const { theme, toggle } = useTheme();
     const reduced = useReducedMotion();
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    const go = (viewId: string) => {
+        setActiveView(viewId);
+        const path = VIEW_PATHS[viewId] || `/${viewId}`;
+        if (location.pathname !== path) navigate(path);
+    };
 
     return (
-        <aside className="hidden md:flex w-[4.25rem] flex-shrink-0 flex-col items-center
-                          bg-[#08080a] border-r border-line/30 py-4 gap-2">
-            <div className="w-10 h-10 rounded-xl bg-grad-violet shadow-glow-violet
-                            flex items-center justify-center mb-2">
-                <span className="text-white font-bold text-lg">G</span>
+        <aside className="hidden md:flex w-[3.5rem] flex-shrink-0 flex-col items-center
+                          bg-surface-sunken border-r border-line/40 py-3 gap-1.5">
+            <div className="w-8 h-8 rounded-lg bg-grad-brand flex items-center justify-center mb-2 shadow-glow-brand">
+                <span className="text-white text-xs font-bold">J</span>
             </div>
 
             <LayoutGroup id="rail-nav">
                 <nav className="flex flex-col gap-1 mt-2">
-                    {TOP_ITEMS.map(item => (
+                    {navItems.map(item => (
                         <RailButton
                             key={item.id}
                             active={activeView === item.id}
-                            onClick={() => setActiveView(item.id)}
+                            onClick={() => go(item.id)}
                             label={item.label}
                             Icon={item.icon}
                             reduced={reduced}
@@ -95,7 +122,7 @@ export function IconRail({ activeView, setActiveView }: IconRailProps) {
                         <RailButton
                             key={item.id}
                             active={activeView === item.id}
-                            onClick={() => setActiveView(item.id)}
+                            onClick={() => go(item.id)}
                             label={item.label}
                             Icon={item.icon}
                             reduced={reduced}

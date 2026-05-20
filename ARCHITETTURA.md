@@ -33,37 +33,34 @@ Questa è un'applicazione full-stack per la gestione di un'associazione, con sep
 
 ```
 GESTIONALE-JEINS/
-├── backend/                    # Backend API
+├── backend/
+│   ├── app.js                 # Factory Express (middleware + route)
+│   ├── server.js              # Avvio HTTP
+│   ├── lib/                   # roles, pagination, taskAccess, AppError
+│   ├── services/              # authService (logica auth)
+│   ├── middleware/            # auth, authorize, rateLimit, requestLog
+│   ├── validators/            # schemi Zod (auth)
+│   ├── routes/                # API REST per dominio
+│   │   ├── auth, clients, projects, contracts, events
+│   │   ├── users, tasks, sprints, activities, timeEntries
+│   │   ├── messages, polls, candidates, onboarding, eventReports
 │   ├── database/
-│   │   ├── schema.sql         # Schema database PostgreSQL
-│   │   └── connection.js     # Pool connessioni database
-│   ├── middleware/
-│   │   └── auth.js            # Middleware autenticazione JWT
-│   ├── routes/
-│   │   ├── auth.js            # API autenticazione (login/register)
-│   │   ├── clients.js         # API clienti
-│   │   ├── projects.js        # API progetti + todos
-│   │   ├── contracts.js      # API contratti/fatture
-│   │   ├── events.js          # API eventi/calendario
-│   │   └── users.js           # API utenti
+│   │   ├── schema.sql         # Bootstrap DB nuovo ambiente
+│   │   ├── migration_*.sql    # Migrazioni incrementali
+│   │   └── connection.js
 │   ├── scripts/
-│   │   └── migrate.js         # Script migrazione database
-│   ├── server.js              # Server Express principale
-│   ├── package.json
-│   └── render.yaml            # Configurazione deploy Render
+│   │   ├── migrate.js         # Bootstrap (SEED_ADMIN opzionale)
+│   │   └── run-sql-migrations.js
+│   ├── test/                  # Test Node (npm test)
+│   └── render.yaml
 │
-└── gestionale-app/            # Frontend React
-    ├── src/
-    │   ├── components/
-    │   │   └── Login.tsx      # Componente login/registrazione
-    │   ├── services/
-    │   │   └── api.js         # Client API per chiamate backend
-    │   ├── App.tsx             # Componente principale
-    │   ├── main.tsx            # Entry point
-    │   └── index.css          # Stili Tailwind
-    ├── package.json
-    └── render.yaml             # Configurazione deploy Render
+└── gestionale-app/            # Frontend React + Vite + TypeScript
+    ├── src/components/        # UI (Login, Dashboard, Calendar, …)
+    ├── src/services/api.ts    # Client API
+    └── render.yaml
 ```
+
+Documentazione operativa: `docs/RBAC.md`, `docs/INDEX.md`.
 
 ## 🗄️ Database Schema
 
@@ -107,14 +104,14 @@ GESTIONALE-JEINS/
 
 ## 🔐 Autenticazione
 
-- **JWT (JSON Web Tokens)** per autenticazione
-- Token salvato in `localStorage` del browser
-- Token valido per 7 giorni
-- Middleware `authenticateToken` protegge le route API
+- **JWT** (7 giorni), ruolo ricaricato dal DB a ogni richiesta
+- **Registrazione**: ruolo non inviabile dal client; campo opzionale `managerCode` → ruolo elevato (hash in `ELEVATED_REGISTRATION_CODE_HASH`)
+- **RBAC** su clienti, progetti, contratti, task (vedi `docs/RBAC.md`)
+- Rate limiting su login/register
 - Endpoint:
-  - `POST /api/auth/login` - Login
-  - `POST /api/auth/register` - Registrazione
-  - `GET /api/auth/verify` - Verifica token
+  - `POST /api/auth/login`
+  - `POST /api/auth/register` (body: `name`, `email`, `password`, `area?`, `managerCode?`)
+  - `GET /api/auth/verify`
 
 ## 🌐 API Endpoints
 

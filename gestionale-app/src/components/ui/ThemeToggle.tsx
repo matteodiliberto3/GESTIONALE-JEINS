@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
 import { Moon, Sun } from 'lucide-react';
-import { useTheme } from '../../contexts/ThemeContext';
+import { useTheme } from '../../theme/ThemeProvider';
 import { Button } from './Button';
 import { cn } from '../../utils/cn';
 
 export const ThemeToggle: React.FC = () => {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggle } = useTheme();
   const [isAnimating, setIsAnimating] = useState(false);
 
   const handleClick = () => {
     setIsAnimating(true);
-    toggleTheme();
+    toggle();
     // Reset animazione dopo la transizione
     setTimeout(() => setIsAnimating(false), 300);
   };

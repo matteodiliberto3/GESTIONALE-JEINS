@@ -1,9 +1,19 @@
 import express from 'express';
 import pool from '../database/connection.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { isPrivileged, isSocio } from '../lib/roles.js';
+import { canEditTask, canEditProjectTasks } from '../lib/taskAccess.js';
 
 const router = express.Router();
 router.use(authenticateToken);
+
+async function guardTaskEdit(req, res, next) {
+    const taskId = req.params.id || req.params.taskId;
+    if (!(await canEditTask(req.user, taskId))) {
+        return res.status(403).json({ error: 'Non puoi modificare questo task' });
+    }
+    next();
+}
 
 // Helper: carica subtasks + assignees per una lista di task
 async function hydrateTasks(taskRows) {
@@ -43,6 +53,21 @@ router.get('/', async (req, res) => {
         if (columnId)  { params.push(columnId);  conditions.push(`t.column_id = $${params.length}`); }
         if (sprintId)  { params.push(sprintId);  conditions.push(`t.sprint_id = $${params.length}`); }
 
+        if (isSocio(req.user.role)) {
+            params.push(req.user.userId);
+            conditions.push(`EXISTS (
+                SELECT 1 FROM task_assignees ta
+                WHERE ta.task_id = t.task_id AND ta.user_id = $${params.length}
+            )`);
+        } else if (!isPrivileged(req.user.role)) {
+            params.push(req.user.userId, req.user.area);
+            conditions.push(`(
+                p.area = $${params.length}
+                OR p.area IS NULL
+                OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.task_id AND ta.user_id = $${params.length - 1})
+            )`);
+        }
+
         const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
         const result = await pool.query(
@@ -64,6 +89,105 @@ router.get('/', async (req, res) => {
         res.json(await hydrateTasks(result.rows));
     } catch (error) {
         console.error('Errore recupero tasks:', error);
+        res.status(500).json({ error: 'Errore interno del server' });
+    }
+});
+
+// GET /api/tasks/mytasks - Task assegnati all'utente (scadenze e lavori propri)
+router.get('/mytasks', async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT t.task_id as id, t.project_id as "projectId", t.title, t.description,
+                    t.priority, t.due_date as "dueDate", t.updated_at as "updatedAt",
+                    p.name as "projectName", p.area as "projectArea",
+                    bc.name as "columnName"
+             FROM tasks t
+             INNER JOIN task_assignees ta ON ta.task_id = t.task_id AND ta.user_id = $1
+             LEFT JOIN projects p ON p.project_id = t.project_id
+             LEFT JOIN board_columns bc ON bc.column_id = t.column_id
+             ORDER BY t.due_date ASC NULLS LAST, t.updated_at DESC`,
+            [req.user.userId],
+        );
+
+        const statusFromColumn = (name) => {
+            if (!name) return 'Da Fare';
+            const n = name.toLowerCase();
+            if (n.includes('complet') || n.includes('done')) return 'Completato';
+            if (n.includes('revision')) return 'In Revisione';
+            if (n.includes('corso') || n.includes('progress')) return 'In Corso';
+            return 'Da Fare';
+        };
+
+        res.json(
+            result.rows.map(row => ({
+                id: row.id,
+                description: row.description || row.title,
+                projectName: row.projectName,
+                projectArea: row.projectArea,
+                priority: row.priority,
+                dueDate: row.dueDate,
+                updatedAt: row.updatedAt,
+                status: statusFromColumn(row.columnName),
+                columnName: row.columnName,
+            })),
+        );
+    } catch (error) {
+        console.error('Errore mytasks:', error);
+        res.status(500).json({ error: 'Errore interno del server' });
+    }
+});
+
+const STATUS_TO_COLUMN_HINTS = {
+    'Da Fare': ['da fare', 'todo', 'backlog', 'to do'],
+    'In Corso': ['in corso', 'progress', 'doing', 'wip'],
+    'In Revisione': ['revisione', 'review'],
+    'Completato': ['complet', 'done', 'fatto'],
+};
+
+// PATCH /api/tasks/:id/status - Aggiorna stato (colonna kanban) dei propri task
+router.patch('/:id/status', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+        if (!status) return res.status(400).json({ error: 'status obbligatorio' });
+
+        if (!(await canEditTask(req.user, id))) {
+            return res.status(403).json({ error: 'Non puoi modificare questo task' });
+        }
+
+        const taskRow = await pool.query(
+            'SELECT project_id FROM tasks WHERE task_id = $1',
+            [id],
+        );
+        if (!taskRow.rows.length) return res.status(404).json({ error: 'Task non trovato' });
+
+        const hints = STATUS_TO_COLUMN_HINTS[status] || [status.toLowerCase()];
+        const colResult = await pool.query(
+            `SELECT column_id, name FROM board_columns
+             WHERE project_id = $1
+             ORDER BY position ASC`,
+            [taskRow.rows[0].project_id],
+        );
+
+        let columnId = colResult.rows[0]?.column_id;
+        for (const col of colResult.rows) {
+            const name = (col.name || '').toLowerCase();
+            if (hints.some(h => name.includes(h))) {
+                columnId = col.column_id;
+                break;
+            }
+        }
+
+        const result = await pool.query(
+            `UPDATE tasks SET column_id = $1, updated_at = CURRENT_TIMESTAMP
+             WHERE task_id = $2
+             RETURNING task_id as id`,
+            [columnId, id],
+        );
+
+        res.json({ id: result.rows[0].id, status });
+    } catch (error) {
+        console.error('Errore update task status:', error);
         res.status(500).json({ error: 'Errore interno del server' });
     }
 });
@@ -92,6 +216,10 @@ router.get('/:id', async (req, res) => {
 // POST /api/tasks
 router.post('/', async (req, res) => {
     try {
+        if (isSocio(req.user.role)) {
+            return res.status(403).json({ error: 'I soci non possono creare nuovi task' });
+        }
+
         const {
             projectId, columnId, sprintId, title, description, coverUrl,
             priority, storyPoints, startDate, dueDate, position, assigneeIds
@@ -99,6 +227,10 @@ router.post('/', async (req, res) => {
 
         if (!projectId || !title) {
             return res.status(400).json({ error: 'projectId e title sono obbligatori' });
+        }
+
+        if (!(await canEditProjectTasks(req.user, projectId))) {
+            return res.status(403).json({ error: 'Non puoi creare task in questo progetto' });
         }
 
         const result = await pool.query(
@@ -143,6 +275,16 @@ router.post('/', async (req, res) => {
 // PUT /api/tasks/:id
 router.put('/:id', async (req, res) => {
     try {
+        const { id } = req.params;
+
+        if (isSocio(req.user.role)) {
+            return res.status(403).json({ error: 'Usa PATCH /api/tasks/:id/status per aggiornare i tuoi lavori' });
+        }
+
+        if (!(await canEditTask(req.user, id))) {
+            return res.status(403).json({ error: 'Non puoi modificare questo task' });
+        }
+
         const {
             columnId, sprintId, title, description, coverUrl,
             priority, storyPoints, startDate, dueDate, position
@@ -181,7 +323,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // PATCH /api/tasks/:id/move - sposta tra colonne (drag & drop)
-router.patch('/:id/move', async (req, res) => {
+router.patch('/:id/move', guardTaskEdit, async (req, res) => {
     try {
         const { columnId, position } = req.body;
         const result = await pool.query(
@@ -207,7 +349,7 @@ router.patch('/:id/move', async (req, res) => {
 });
 
 // DELETE /api/tasks/:id
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', guardTaskEdit, async (req, res) => {
     try {
         const result = await pool.query(
             'DELETE FROM tasks WHERE task_id = $1 RETURNING task_id',
@@ -222,7 +364,7 @@ router.delete('/:id', async (req, res) => {
 });
 
 // --- Subtasks ---
-router.post('/:id/subtasks', async (req, res) => {
+router.post('/:id/subtasks', guardTaskEdit, async (req, res) => {
     try {
         const { text, position } = req.body;
         if (!text) return res.status(400).json({ error: 'text obbligatorio' });
@@ -239,7 +381,7 @@ router.post('/:id/subtasks', async (req, res) => {
     }
 });
 
-router.patch('/:taskId/subtasks/:subtaskId/toggle', async (req, res) => {
+router.patch('/:taskId/subtasks/:subtaskId/toggle', guardTaskEdit, async (req, res) => {
     try {
         const result = await pool.query(
             `UPDATE subtasks SET completed = NOT completed, updated_at = CURRENT_TIMESTAMP
@@ -255,7 +397,7 @@ router.patch('/:taskId/subtasks/:subtaskId/toggle', async (req, res) => {
     }
 });
 
-router.delete('/:taskId/subtasks/:subtaskId', async (req, res) => {
+router.delete('/:taskId/subtasks/:subtaskId', guardTaskEdit, async (req, res) => {
     try {
         const result = await pool.query(
             'DELETE FROM subtasks WHERE subtask_id = $1 AND task_id = $2 RETURNING subtask_id',
@@ -270,7 +412,7 @@ router.delete('/:taskId/subtasks/:subtaskId', async (req, res) => {
 });
 
 // --- Assignees ---
-router.post('/:id/assignees', async (req, res) => {
+router.post('/:id/assignees', guardTaskEdit, async (req, res) => {
     try {
         const { userId } = req.body;
         await pool.query(
@@ -285,7 +427,7 @@ router.post('/:id/assignees', async (req, res) => {
     }
 });
 
-router.delete('/:id/assignees/:userId', async (req, res) => {
+router.delete('/:id/assignees/:userId', guardTaskEdit, async (req, res) => {
     try {
         await pool.query(
             'DELETE FROM task_assignees WHERE task_id = $1 AND user_id = $2',

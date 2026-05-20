@@ -1,9 +1,11 @@
 import express from 'express';
 import pool from '../database/connection.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { requireNotSocio } from '../middleware/authorize.js';
 
 const router = express.Router();
 router.use(authenticateToken);
+router.use(requireNotSocio);
 
 // GET /api/chats - elenco chat dell'utente con ultimo messaggio
 router.get('/chats', async (req, res) => {

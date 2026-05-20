@@ -1,14 +1,17 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
     DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
     closestCorners, useDroppable,
 } from '@dnd-kit/core';
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { motion } from 'framer-motion';
-import { Plus, Filter, Share2 } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Plus, Filter, Share2, MoreHorizontal, ArrowDownWideNarrow } from 'lucide-react';
 import { TaskCard } from './TaskCard';
-import { SPRING, TRANSITION } from '../../motion/presets';
+import { TRANSITION } from '../../motion/presets';
+import { dropdown } from '../../motion/variants';
+import { openNotice } from '../../utils/notice';
 import type { Task, BoardColumn } from '../../types/models';
 
 interface KanbanBoardProps {
@@ -16,23 +19,18 @@ interface KanbanBoardProps {
     tasks: Task[];
     onMoveTask: (taskId: string, columnId: string, position: number) => void;
     onAddTask?: (columnId: string) => void;
+    onDeleteTask?: (taskId: string) => void;
+    onSortColumnByPriority?: (columnId: string) => void;
 }
 
-const columnAccent: Record<string, { dot: string; text: string }> = {
-    violet:  { dot: 'bg-brand-400',   text: 'text-brand-300' },
-    cyan:    { dot: 'bg-cyan-400',    text: 'text-cyan-300' },
-    pink:    { dot: 'bg-pink-400',    text: 'text-pink-300' },
-    emerald: { dot: 'bg-emerald-400', text: 'text-emerald-300' },
-    amber:   { dot: 'bg-amber-400',   text: 'text-amber-300' },
-    rose:    { dot: 'bg-rose-400',    text: 'text-rose-300' },
-};
+const columnPill = 'bg-surface-inset border-line/50';
+const columnDot = 'bg-brand-500';
+const columnText = 'text-ink-muted';
 
-export function KanbanBoard({ columns, tasks, onMoveTask, onAddTask }: KanbanBoardProps) {
+export function KanbanBoard({
+    columns, tasks, onMoveTask, onAddTask, onDeleteTask, onSortColumnByPriority,
+}: KanbanBoardProps) {
     const [activeTask, setActiveTask] = useState<Task | null>(null);
-
-    const notice = (title: string, message: string) => {
-        window.dispatchEvent(new CustomEvent('app:notice', { detail: { title, message } }));
-    };
 
     const sensors = useSensors(useSensor(PointerSensor, {
         activationConstraint: { distance: 8 },
@@ -82,138 +80,199 @@ export function KanbanBoard({ columns, tasks, onMoveTask, onAddTask }: KanbanBoa
     };
 
     return (
-        <motion.section
-            className="bento-panel overflow-hidden"
-            layout
-            transition={TRANSITION.normal}
-        >
+        <section className="bento-panel overflow-hidden h-full flex flex-col">
             <div className="flex items-center justify-between px-5 pt-5 pb-3">
-                <h3 className="text-base font-semibold text-ink tracking-tight">All Tasks</h3>
-                <motion.div className="flex items-center gap-1" layout="position">
-                    <motion.button
+                <h3 className="text-sm font-semibold text-ink tracking-tight">Task</h3>
+                <div className="flex items-center gap-1">
+                    <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label="Ordina per priorità"
+                        title="Ordina per priorità"
+                        onClick={() => {
+                            if (!onSortColumnByPriority) {
+                                openNotice('Ordinamento', 'Ordina le colonne per priorità.');
+                                return;
+                            }
+                            columns.forEach(c => onSortColumnByPriority(c.id));
+                        }}
+                    >
+                        <ArrowDownWideNarrow className="w-4 h-4" />
+                    </button>
+                    <button
                         type="button"
                         className="icon-btn"
                         aria-label="Filtra"
-                        whileTap={{ scale: 0.96 }}
-                        transition={SPRING.snap}
-                        onClick={() => notice('Filtri task', 'Filtro pronto: qui potrai filtrare per priorità, assegnatario e sprint.')}
+                        onClick={() => openNotice('Filtri', 'Filtri per priorità, assegnatario e sprint in arrivo.')}
                     >
                         <Filter className="w-4 h-4" />
-                    </motion.button>
-                    <motion.button
+                    </button>
+                    <button
                         type="button"
                         className="icon-btn"
-                        aria-label="Condividi"
-                        whileTap={{ scale: 0.96 }}
-                        transition={SPRING.snap}
-                        onClick={() => notice('Condividi board', 'Link board preparato. Collega qui copia link o invito team.')}
+                        aria-label="Condividi board"
+                        onClick={() => openNotice('Condividi', 'Link al board in preparazione.')}
                     >
                         <Share2 className="w-4 h-4" />
-                    </motion.button>
-                    <motion.button
+                    </button>
+                    <button
                         type="button"
-                        className="btn-primary text-xs px-3 py-1.5"
-                        whileTap={{ scale: 0.98 }}
-                        transition={SPRING.snap}
+                        className="btn-primary text-xs !px-3 !py-1.5"
                         onClick={() => onAddTask?.(columns[0]?.id || '')}
                     >
-                        <Plus className="w-3.5 h-3.5" /> Add Task
-                    </motion.button>
-                </motion.div>
+                        <Plus className="w-3.5 h-3.5" /> Nuovo task
+                    </button>
+                </div>
             </div>
 
-            <div className="px-5 pb-5">
-                <DndContext sensors={sensors} collisionDetection={closestCorners}
-                            onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
+            <div className="px-5 pb-5 flex-1 min-h-0">
+                <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCorners}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                >
+                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin h-full">
                         {columns.map(col => (
                             <KanbanColumn
                                 key={col.id}
                                 column={col}
                                 tasks={tasksByColumn.get(col.id) || []}
-                                accent={columnAccent[col.accent] || columnAccent.violet}
                                 onAddTask={onAddTask}
+                                onDeleteTask={onDeleteTask}
+                                onSortByPriority={onSortColumnByPriority}
                             />
                         ))}
                     </div>
-                    <DragOverlay dropAnimation={{ duration: 200, easing: 'ease-out' }}>
-                        {activeTask && (
-                            <motion.div
-                                className="w-72"
-                                initial={{ scale: 1, rotate: 0 }}
-                                animate={{ scale: 1.02, rotate: 0.5 }}
-                                transition={SPRING.soft}
-                            >
-                                <TaskCard task={activeTask} isOverlay />
-                            </motion.div>
-                        )}
-                    </DragOverlay>
+                    {createPortal(
+                        <DragOverlay dropAnimation={{ duration: 180, easing: 'ease-out' }}>
+                            {activeTask && (
+                                <div className="w-[17rem]">
+                                    <TaskCard task={activeTask} isOverlay />
+                                </div>
+                            )}
+                        </DragOverlay>,
+                        document.body,
+                    )}
                 </DndContext>
             </div>
-        </motion.section>
+        </section>
     );
 }
 
 function KanbanColumn({
-    column, tasks, accent, onAddTask,
+    column, tasks, onAddTask, onDeleteTask, onSortByPriority,
 }: {
     column: BoardColumn;
     tasks: Task[];
-    accent: { dot: string; text: string };
     onAddTask?: (columnId: string) => void;
+    onDeleteTask?: (taskId: string) => void;
+    onSortByPriority?: (columnId: string) => void;
 }) {
     const { setNodeRef, isOver } = useDroppable({
         id: column.id,
         data: { type: 'column', columnId: column.id },
     });
 
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!menuOpen) return;
+        const onClick = (e: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+                setMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', onClick);
+        return () => document.removeEventListener('mousedown', onClick);
+    }, [menuOpen]);
+
     return (
-        <div ref={setNodeRef} className="w-72 flex-shrink-0">
-            <div className={`flex items-center justify-between mb-2 px-1 py-1 rounded-lg transition-colors duration-200
-                             ${isOver ? 'bg-surface-inset/70' : ''}`}>
-                <motion.div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full
-                                 bg-surface-inset/80 border border-line/50 backdrop-blur-sm`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${accent.dot}`} />
-                    <span className={`text-[11px] font-semibold uppercase tracking-wider ${accent.text}`}>
+        <div ref={setNodeRef} className="w-[17rem] flex-shrink-0 flex flex-col min-h-0">
+            <div className="flex items-center justify-between mb-2 px-0.5">
+                <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full border ${columnPill}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${columnDot}`} />
+                    <span className={`text-[10px] font-semibold uppercase tracking-wide ${columnText}`}>
                         {column.name}
                     </span>
-                    <motion.span
-                        key={tasks.length}
-                        className="text-[10px] text-ink-subtle font-medium tabular-nums"
-                        initial={{ opacity: 0.6, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={SPRING.snap}
-                    >
+                    <span className="text-[10px] text-ink font-bold tabular-nums ml-0.5">
                         {tasks.length}
-                    </motion.span>
-                </motion.div>
-                <motion.button
-                    type="button"
-                    className="icon-btn !w-7 !h-7"
-                    whileTap={{ scale: 0.94 }}
-                    transition={SPRING.snap}
-                    onClick={() => onAddTask?.(column.id)}
-                    aria-label="Aggiungi task"
-                >
-                    <Plus className="w-3.5 h-3.5" />
-                </motion.button>
+                    </span>
+                </div>
+                <div className="flex items-center gap-0.5">
+                    <button
+                        type="button"
+                        className="icon-btn !w-7 !h-7"
+                        onClick={() => onAddTask?.(column.id)}
+                        aria-label="Aggiungi task"
+                    >
+                        <Plus className="w-3.5 h-3.5" />
+                    </button>
+                    <div className="relative" ref={menuRef}>
+                        <button
+                            type="button"
+                            className="icon-btn !w-7 !h-7"
+                            onClick={() => setMenuOpen(o => !o)}
+                            aria-label="Opzioni colonna"
+                        >
+                            <MoreHorizontal className="w-3.5 h-3.5" />
+                        </button>
+                        <AnimatePresence>
+                            {menuOpen && (
+                                <motion.div
+                                    className="absolute right-0 top-full mt-1.5 w-52 bento-panel p-1 z-50"
+                                    variants={dropdown}
+                                    initial="hidden"
+                                    animate="show"
+                                    exit="exit"
+                                >
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            onSortByPriority?.(column.id);
+                                            setMenuOpen(false);
+                                        }}
+                                        className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg
+                                                   text-xs text-ink hover:bg-surface-inset/70 transition-colors"
+                                    >
+                                        <ArrowDownWideNarrow className="w-3.5 h-3.5 text-ink-subtle" />
+                                        Ordina per priorità
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            onAddTask?.(column.id);
+                                            setMenuOpen(false);
+                                        }}
+                                        className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg
+                                                   text-xs text-ink hover:bg-surface-inset/70 transition-colors"
+                                    >
+                                        <Plus className="w-3.5 h-3.5 text-ink-subtle" />
+                                        Aggiungi task
+                                    </button>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                </div>
             </div>
 
             <motion.div
-                className="kanban-well space-y-2"
+                className="kanban-well space-y-2 flex-1 overflow-y-auto scrollbar-thin"
                 animate={{
-                    borderColor: isOver ? 'rgba(139, 92, 246, 0.35)' : 'rgba(42, 40, 52, 0.45)',
-                    backgroundColor: isOver ? 'rgba(139, 92, 246, 0.08)' : 'rgba(14, 14, 18, 0.35)',
+                    borderColor: isOver ? 'rgba(26, 122, 85, 0.4)' : 'rgba(var(--line) / 0.5)',
+                    backgroundColor: isOver ? 'rgba(26, 122, 85, 0.06)' : 'rgb(var(--surface-inset) / 0.5)',
                 }}
                 transition={TRANSITION.fast}
             >
                 <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
                     {tasks.map(t => (
-                        <TaskCard key={t.id} task={t} />
+                        <TaskCard key={t.id} task={t} onDelete={onDeleteTask} />
                     ))}
                 </SortableContext>
                 {tasks.length === 0 && (
-                    <p className="text-[11px] text-ink-subtle italic px-3 py-6 text-center">
+                    <p className="text-xs text-ink-subtle italic px-3 py-6 text-center">
                         Trascina qui i task
                     </p>
                 )}

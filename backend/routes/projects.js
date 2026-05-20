@@ -1,40 +1,35 @@
 import express from 'express';
 import pool from '../database/connection.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { requireProjectWrite, requireNotSocio } from '../middleware/authorize.js';
+import { isSocio, isPrivileged, canAccessProjectInArea } from '../lib/roles.js';
+import { isUserAssignedToProject } from '../lib/projectAccess.js';
+import { attachTodosToProjects } from '../lib/projects.js';
 
 const router = express.Router();
 router.use(authenticateToken);
 
-// GET /api/projects - Lista tutti i progetti
-router.get('/', async (req, res) => {
+// GET /api/projects - Lista progetti (management; i soci usano /my)
+router.get('/', requireNotSocio, async (req, res, next) => {
     try {
+        const params = [];
+        let where = '';
+
         const result = await pool.query(
-            `SELECT p.project_id as id, p.name, p.client_id as "clientId", 
+            `SELECT p.project_id as id, p.name, p.client_id as "clientId",
                     p.area, p.status, p.created_at as "createdAt", p.version,
                     c.name as "clientName"
              FROM projects p
              LEFT JOIN clients c ON p.client_id = c.client_id
-             ORDER BY p.created_at DESC`
+             ${where}
+             ORDER BY p.created_at DESC`,
+            params,
         );
 
-        // Recupera i todo per ogni progetto
-        const projectsWithTodos = await Promise.all(
-            result.rows.map(async (project) => {
-                const todosResult = await pool.query(
-                    `SELECT todo_id as id, text, completed, priority, created_at as "createdAt"
-                     FROM todos
-                     WHERE project_id = $1
-                     ORDER BY created_at ASC`,
-                    [project.id]
-                );
-                return { ...project, todos: todosResult.rows };
-            })
-        );
-
+        const projectsWithTodos = await attachTodosToProjects(result.rows);
         res.json(projectsWithTodos);
     } catch (error) {
-        console.error('Errore recupero progetti:', error);
-        res.status(500).json({ error: 'Errore interno del server' });
+        next(error);
     }
 });
 
@@ -80,6 +75,14 @@ router.get('/my', async (req, res) => {
 router.get('/:id', async (req, res) => {
     try {
         const { id } = req.params;
+
+        if (isSocio(req.user.role)) {
+            const assigned = await isUserAssignedToProject(req.user.userId, id);
+            if (!assigned) {
+                return res.status(403).json({ error: 'Progetto non assegnato al tuo profilo' });
+            }
+        }
+
         const projectResult = await pool.query(
             `SELECT p.project_id as id, p.name, p.client_id as "clientId", 
                     p.area, p.status, p.created_at as "createdAt", p.version,
@@ -92,6 +95,10 @@ router.get('/:id', async (req, res) => {
 
         if (projectResult.rows.length === 0) {
             return res.status(404).json({ error: 'Progetto non trovato' });
+        }
+
+        if (!canAccessProjectInArea(req.user, projectResult.rows[0].area)) {
+            return res.status(403).json({ error: 'Accesso negato a questo progetto' });
         }
 
         const todosResult = await pool.query(
@@ -110,7 +117,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/projects - Crea nuovo progetto
-router.post('/', async (req, res) => {
+router.post('/', requireProjectWrite, async (req, res) => {
     try {
         const { name, clientId, area, status } = req.body;
 
@@ -134,7 +141,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/projects/:id - Aggiorna progetto con optimistic locking
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireProjectWrite, async (req, res) => {
     try {
         const { id } = req.params;
         const { name, clientId, area, status, expectedVersion } = req.body;
@@ -204,7 +211,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // PATCH /api/projects/:id/status - Aggiorna solo lo stato
-router.patch('/:id/status', async (req, res) => {
+router.patch('/:id/status', requireProjectWrite, async (req, res) => {
     try {
         const { id } = req.params;
         const { status } = req.body;
@@ -234,7 +241,7 @@ router.patch('/:id/status', async (req, res) => {
 });
 
 // DELETE /api/projects/:id - Elimina progetto
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireProjectWrite, async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -257,7 +264,7 @@ router.delete('/:id', async (req, res) => {
 // --- TODO Routes ---
 
 // POST /api/projects/:id/todos - Aggiungi todo a progetto
-router.post('/:id/todos', async (req, res) => {
+router.post('/:id/todos', requireProjectWrite, async (req, res) => {
     try {
         const { id } = req.params;
         const { text, priority } = req.body;
@@ -280,8 +287,19 @@ router.post('/:id/todos', async (req, res) => {
     }
 });
 
+async function requireTodoUpdateAccess(req, res, next) {
+    if (!isSocio(req.user.role)) {
+        return requireProjectWrite(req, res, next);
+    }
+    const assigned = await isUserAssignedToProject(req.user.userId, req.params.projectId);
+    if (!assigned) {
+        return res.status(403).json({ error: 'Non puoi aggiornare task di questo progetto' });
+    }
+    next();
+}
+
 // PATCH /api/projects/:projectId/todos/:todoId/toggle - Toggle completamento todo
-router.patch('/:projectId/todos/:todoId/toggle', async (req, res) => {
+router.patch('/:projectId/todos/:todoId/toggle', requireTodoUpdateAccess, async (req, res) => {
     try {
         const { projectId, todoId } = req.params;
 
@@ -305,7 +323,7 @@ router.patch('/:projectId/todos/:todoId/toggle', async (req, res) => {
 });
 
 // PATCH /api/projects/:projectId/todos/:todoId/status - Aggiorna stato del todo
-router.patch('/:projectId/todos/:todoId/status', async (req, res) => {
+router.patch('/:projectId/todos/:todoId/status', requireTodoUpdateAccess, async (req, res) => {
     try {
         const { projectId, todoId } = req.params;
         const { status, completed } = req.body;
@@ -343,7 +361,7 @@ router.patch('/:projectId/todos/:todoId/status', async (req, res) => {
 });
 
 // DELETE /api/projects/:projectId/todos/:todoId - Elimina todo
-router.delete('/:projectId/todos/:todoId', async (req, res) => {
+router.delete('/:projectId/todos/:todoId', requireProjectWrite, async (req, res) => {
     try {
         const { projectId, todoId } = req.params;
 

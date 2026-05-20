@@ -20,10 +20,10 @@ const iconMap = {
 };
 
 const variantStyles = {
-  success: 'bg-success-50 dark:bg-success-900/30 border-success-200 dark:border-success-800 text-success-800 dark:text-success-300',
-  error: 'bg-error-50 dark:bg-error-900/30 border-error-200 dark:border-error-800 text-error-800 dark:text-error-300',
-  warning: 'bg-warning-50 dark:bg-warning-900/30 border-warning-200 dark:border-warning-800 text-warning-800 dark:text-warning-300',
-  info: 'bg-info-50 dark:bg-info-900/30 border-info-200 dark:border-info-800 text-info-800 dark:text-info-300',
+  success: 'bg-brand-950/90 border-brand-700/50 text-brand-200',
+  error: 'bg-error-900/80 border-error-800/50 text-error-200',
+  warning: 'bg-warning-900/80 border-warning-800/50 text-warning-200',
+  info: 'bg-surface-raised border-line/60 text-ink',
 };
 
 export const Toast: React.FC<ToastProps> = ({
@@ -37,24 +37,20 @@ export const Toast: React.FC<ToastProps> = ({
   const [isLeaving, setIsLeaving] = useState(false);
 
   useEffect(() => {
-    // Trigger entrance animation
-    setTimeout(() => setIsVisible(true), 10);
-
-    // Auto close
+    const t = setTimeout(() => setIsVisible(true), 10);
+    let timer: ReturnType<typeof setTimeout> | undefined;
     if (duration > 0) {
-      const timer = setTimeout(() => {
-        handleClose();
-      }, duration);
-
-      return () => clearTimeout(timer);
+      timer = setTimeout(() => handleClose(), duration);
     }
+    return () => {
+      clearTimeout(t);
+      if (timer) clearTimeout(timer);
+    };
   }, [duration]);
 
   const handleClose = () => {
     setIsLeaving(true);
-    setTimeout(() => {
-      onClose(id);
-    }, 300);
+    setTimeout(() => onClose(id), 280);
   };
 
   const Icon = iconMap[type];
@@ -62,24 +58,23 @@ export const Toast: React.FC<ToastProps> = ({
   return (
     <div
       className={cn(
-        'flex items-start gap-3 p-4 rounded-lg border shadow-lg',
-        'min-w-[300px] max-w-[500px]',
-        'transition-all duration-300',
+        'flex items-start gap-3 p-3.5 rounded-xl border shadow-panel',
+        'min-w-[280px] max-w-[420px]',
+        'transition-all duration-280',
         variantStyles[type],
         isVisible && !isLeaving
           ? 'translate-x-0 opacity-100'
-          : 'translate-x-full opacity-0'
+          : 'translate-x-4 opacity-0',
       )}
       role="alert"
       aria-live="polite"
     >
-      <Icon className="w-5 h-5 flex-shrink-0 mt-0.5" />
-      <div className="flex-1">
-        <p className="text-sm font-medium">{message}</p>
-      </div>
+      <Icon className="w-4 h-4 flex-shrink-0 mt-0.5 opacity-80" />
+      <p className="text-sm font-medium flex-1 leading-snug">{message}</p>
       <button
+        type="button"
         onClick={handleClose}
-        className="flex-shrink-0 text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+        className="flex-shrink-0 text-ink-subtle hover:text-ink transition-colors"
         aria-label="Chiudi notifica"
       >
         <X className="w-4 h-4" />
@@ -106,7 +101,7 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({
 
   return (
     <div
-      className="fixed top-4 right-4 z-50 flex flex-col gap-2"
+      className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2"
       aria-live="polite"
       aria-atomic="true"
     >
@@ -123,4 +118,3 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({
     </div>
   );
 };
-

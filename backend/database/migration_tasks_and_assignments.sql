@@ -1,7 +1,14 @@
--- Migration: Sistema Tasks e Assegnazioni Progetti
--- Sostituisce la vecchia todo list con un sistema di task assegnabili
+-- Migration: Sistema Tasks e Assegnazioni Progetti (idempotente)
 
--- 1. Crea tabella Tasks (sostituisce la vecchia todos)
+CREATE TABLE IF NOT EXISTS project_assignments (
+    assignment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id UUID REFERENCES projects(project_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(project_id, user_id)
+);
+
+-- Schema legacy (description + status) — solo se la tabella tasks non esiste ancora
 CREATE TABLE IF NOT EXISTS tasks (
     task_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID REFERENCES projects(project_id) ON DELETE CASCADE,
@@ -14,55 +21,48 @@ CREATE TABLE IF NOT EXISTS tasks (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. Crea tabella Project_Assignments (Membri del Progetto)
-CREATE TABLE IF NOT EXISTS project_assignments (
-    assignment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id UUID REFERENCES projects(project_id) ON DELETE CASCADE,
-    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(project_id, user_id) -- Un utente può essere assegnato una sola volta a un progetto
-);
-
--- 3. Migra dati dalla vecchia tabella todos (se esiste)
--- Nota: Questo script assume che todos esista già. Se non esiste, ignora l'errore.
 DO $$
 BEGIN
-    -- Migra tutti i todos esistenti nella nuova tabella tasks
-    INSERT INTO tasks (project_id, description, status, priority, created_at, updated_at)
-    SELECT 
-        project_id,
-        text as description,
-        CASE 
-            WHEN completed = TRUE THEN 'Completato'
-            ELSE 'Da Fare'
-        END as status,
-        priority,
-        created_at,
-        updated_at
-    FROM todos
-    WHERE NOT EXISTS (
-        SELECT 1 FROM tasks WHERE tasks.project_id = todos.project_id 
-        AND tasks.description = todos.text
-    );
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'tasks' AND column_name = 'title'
+    ) THEN
+        RAISE NOTICE 'Schema tasks kanban già presente: skip migrazione dati da todos';
+    ELSIF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'todos'
+    ) AND EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'tasks' AND column_name = 'description'
+    ) THEN
+        INSERT INTO tasks (project_id, description, status, priority, created_at, updated_at)
+        SELECT project_id, text,
+               CASE WHEN completed = TRUE THEN 'Completato' ELSE 'Da Fare' END,
+               priority, created_at, updated_at
+        FROM todos t
+        WHERE NOT EXISTS (
+            SELECT 1 FROM tasks k
+            WHERE k.project_id = t.project_id AND k.description = t.text
+        );
+    END IF;
 EXCEPTION
     WHEN undefined_table THEN
-        -- Se todos non esiste, non fare nulla
-        RAISE NOTICE 'Tabella todos non trovata, nessuna migrazione necessaria';
+        RAISE NOTICE 'Migrazione todos saltata';
 END $$;
 
--- 4. Crea indici per performance
 CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to_user_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_project_assignments_project_id ON project_assignments(project_id);
 CREATE INDEX IF NOT EXISTS idx_project_assignments_user_id ON project_assignments(user_id);
 
--- 5. Aggiungi trigger per aggiornare updated_at
-CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON tasks
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'tasks' AND column_name = 'assigned_to_user_id'
+    ) THEN
+        CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to_user_id);
+        CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+    END IF;
+END $$;
 
--- 6. Commenti per documentazione
-COMMENT ON TABLE tasks IS 'Task assegnabili ai membri del team per ogni progetto';
-COMMENT ON TABLE project_assignments IS 'Associazioni tra utenti e progetti (membri del team)';
-COMMENT ON COLUMN tasks.assigned_to_user_id IS 'NULL = task non ancora assegnato (in backlog)';
-
+-- Trigger updated_at: gestito da migration_add_version o schema base se presente

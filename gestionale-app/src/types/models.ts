@@ -3,10 +3,11 @@ export interface User {
     name: string;
     email?: string;
     area?: string;
-    role?: 'Socio' | 'Responsabile' | 'Admin';
+    role?: string;
     avatarUrl?: string | null;
     handle?: string | null;
     color?: string | null;
+    permissions?: import('../lib/permissions').UserPermissions;
 }
 
 export interface Client {
@@ -17,6 +18,7 @@ export interface Client {
     phone?: string;
     status: string;
     area?: string;
+    version?: number;
 }
 
 export interface Project {
@@ -27,6 +29,7 @@ export interface Project {
     area?: string;
     status: string;
     todos?: Todo[];
+    version?: number;
 }
 
 export interface Todo {
@@ -44,6 +47,7 @@ export interface Contract {
     amount: number;
     status: string;
     date: string;
+    version?: number;
 }
 
 export interface BoardColumn {

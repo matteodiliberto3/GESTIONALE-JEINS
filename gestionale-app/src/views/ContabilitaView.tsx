@@ -1,7 +1,8 @@
-import { Trash2, Plus, FileText, Receipt, FileSignature } from 'lucide-react';
+import { Trash2, Plus, FileText, Receipt, FileSignature, Pencil } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import type { Contract } from '../types/models';
+import { openNotice } from '../utils/notice';
 
 const CONTRACT_STATUS_OPTIONS = ['Bozza', 'Inviato', 'Firmato', 'Pagato', 'Annullato'];
 
@@ -22,6 +23,7 @@ const typeIcon: Record<string, any> = {
 interface ContabilitaViewProps {
     contracts: Contract[];
     onUpdateStatus: (id: string, status: string) => void;
+    onEdit: (contract: Contract) => void;
     onDelete: (id: string) => void;
     onOpenAdd: () => void;
     getClientName: (id: string) => string;
@@ -32,7 +34,7 @@ const fmtAmount = (n: number) =>
     new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(Number(n));
 
 export function ContabilitaView({
-    contracts, onUpdateStatus, onDelete, onOpenAdd, getClientName, getProjectName,
+    contracts, onUpdateStatus, onEdit, onDelete, onOpenAdd, getClientName, getProjectName,
 }: ContabilitaViewProps) {
     const totals = contracts.reduce((acc, c) => {
         acc.total += Number(c.amount);
@@ -85,12 +87,10 @@ export function ContabilitaView({
                                 return (
                                     <tr
                                         key={c.id}
-                                        onClick={() => window.dispatchEvent(new CustomEvent('app:notice', {
-                                            detail: {
-                                                title: `${c.type} - ${fmtAmount(Number(c.amount))}`,
-                                                message: 'Documento selezionato. Qui potrai aprire dettaglio, scadenze e collegamenti al progetto.',
-                                            },
-                                        }))}
+                                        onClick={() => openNotice(
+                                            `${c.type} - ${fmtAmount(Number(c.amount))}`,
+                                            'Dettaglio documento in arrivo.',
+                                        )}
                                         className="border-b border-line/40 hover:bg-surface-inset/40 transition cursor-pointer"
                                     >
                                         <td className="px-5 py-3">
@@ -122,13 +122,22 @@ export function ContabilitaView({
                                             </select>
                                         </td>
                                         <td className="px-5 py-3 text-right">
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); onDelete(c.id); }}
-                                                className="icon-btn text-rose-400 hover:bg-rose-500/10"
-                                                aria-label="Elimina"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
+                                            <div className="flex justify-end gap-1">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); onEdit(c); }}
+                                                    className="icon-btn text-ink-muted hover:text-brand-300"
+                                                    aria-label="Modifica"
+                                                >
+                                                    <Pencil className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); onDelete(c.id); }}
+                                                    className="icon-btn text-rose-400 hover:bg-rose-500/10"
+                                                    aria-label="Elimina"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 );
@@ -141,12 +150,15 @@ export function ContabilitaView({
     );
 }
 
-function KpiCard({ label, value, tone }: { label: string; value: string; tone: 'violet' | 'emerald' | 'amber' }) {
-    const accentClass = {
-        violet: 'bg-grad-violet',
-        emerald: 'bg-grad-emerald',
-        amber: 'bg-amber-500/80',
-    }[tone];
+const kpiAccent: Record<string, string> = {
+    violet: 'bg-grad-brand',
+    brand: 'bg-grad-brand',
+    emerald: 'bg-grad-emerald',
+    amber: 'bg-amber-500/80',
+};
+
+function KpiCard({ label, value, tone }: { label: string; value: string; tone: string }) {
+    const accentClass = kpiAccent[tone] || 'bg-grad-brand';
 
     return (
         <Card
@@ -154,14 +166,10 @@ function KpiCard({ label, value, tone }: { label: string; value: string; tone: '
             headerAction={null}
             role="button"
             tabIndex={0}
-            onClick={() => window.dispatchEvent(new CustomEvent('app:notice', {
-                detail: { title: label, message: `Valore corrente: ${value}` },
-            }))}
+            onClick={() => openNotice(label, `Valore corrente: ${value}`)}
             onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
-                    window.dispatchEvent(new CustomEvent('app:notice', {
-                        detail: { title: label, message: `Valore corrente: ${value}` },
-                    }));
+                    openNotice(label, `Valore corrente: ${value}`);
                 }
             }}
             className="cursor-pointer transition-transform active:scale-[0.99]"
@@ -173,7 +181,9 @@ function KpiCard({ label, value, tone }: { label: string; value: string; tone: '
                     <p className="text-2xl font-bold text-ink tabular-nums mt-1">{value}</p>
                 </div>
             </div>
-            <Badge tone={tone} className="mt-3"><span className="opacity-90">questo periodo</span></Badge>
+            <Badge tone={(tone === 'amber' || tone === 'emerald' ? tone : 'violet') as 'violet' | 'emerald' | 'amber'} className="mt-3">
+                <span className="opacity-90">questo periodo</span>
+            </Badge>
         </Card>
     );
 }

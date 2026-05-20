@@ -1,0 +1,129 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Bell, HelpCircle, Settings } from 'lucide-react';
+import { AppShell } from '../layout/AppShell';
+import { UtilityView } from '../components/UtilityView';
+import { useAuth } from './AuthProvider';
+import { useProjects } from '../features/data/hooks';
+import { openNotice as notify } from '../utils/notice';
+import { resolvePermissions } from '../lib/permissions';
+
+const VIEW_TITLES: Record<string, string> = {
+    dashboard: 'Dashboard',
+    clienti: 'Gestione Clienti',
+    progetti: 'Gestione Progetti',
+    contabilita: 'Contabilità',
+    calendario: 'Calendario',
+    tasks: 'Le mie attività',
+    inbox: 'Inbox',
+    reports: 'Report',
+    notifiche: 'Notifiche',
+    help: 'Aiuto',
+    settings: 'Impostazioni',
+    admin: 'Amministrazione',
+    recruiting: 'Recruiting',
+};
+
+function pathToView(pathname: string): string {
+    const segment = pathname.replace(/^\//, '').split('/')[0] || 'dashboard';
+    return segment === '' ? 'dashboard' : segment;
+}
+
+export function AuthenticatedLayout() {
+    const { user, logout } = useAuth();
+    const permissions = resolvePermissions(user);
+    const location = useLocation();
+    const navigate = useNavigate();
+    const { data: projects = [] } = useProjects({ enabled: permissions.viewProjects });
+
+    const activeView = pathToView(location.pathname);
+    const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!activeProjectId && projects.length) {
+            setActiveProjectId(projects[0].id);
+        }
+    }, [projects, activeProjectId]);
+
+    const title = VIEW_TITLES[activeView] || 'Gestionale';
+
+    const setActiveView = (view: string) => {
+        const path = view === 'dashboard' ? '/dashboard' : `/${view}`;
+        navigate(path);
+    };
+
+    const openNotice = (noticeTitle: string, message?: string) => {
+        notify(noticeTitle, message || 'Sezione collegata all’interfaccia.');
+    };
+
+    const utilityOutlet = useMemo(() => {
+        switch (activeView) {
+            case 'notifiche':
+                return (
+                    <UtilityView
+                        icon={Bell}
+                        title="Notifiche"
+                        subtitle="Aggiornamenti e reminder."
+                        primaryLabel="Dashboard"
+                        onPrimary={() => navigate('/dashboard')}
+                        cards={[
+                            ['Task', 'Spostamenti kanban e assegnazioni.'],
+                            ['Documenti', 'Stato fatture e contratti.'],
+                            ['Calendario', 'Eventi e RSVP.'],
+                        ]}
+                    />
+                );
+            case 'help':
+                return (
+                    <UtilityView
+                        icon={HelpCircle}
+                        title="Help"
+                        subtitle="Guida rapida."
+                        primaryLabel="Nuovo progetto"
+                        onPrimary={() => navigate('/progetti')}
+                        cards={[
+                            ['Dashboard', 'Kanban, attività, calendario.'],
+                            ['Clienti', 'Anagrafiche commerciali.'],
+                            ['Progetti', 'Todo e stato per cliente.'],
+                        ]}
+                    />
+                );
+            case 'settings':
+                return (
+                    <UtilityView
+                        icon={Settings}
+                        title="Impostazioni"
+                        subtitle="Preferenze account."
+                        primaryLabel="Tema"
+                        onPrimary={() =>
+                            openNotice('Tema', 'Usa sole/luna nella barra laterale.')}
+                        cards={[
+                            ['Account', user?.name || 'Utente'],
+                            ['Workspace', 'GESTIONALE JEINS'],
+                            ['API', import.meta.env.VITE_API_URL || 'localhost:3000'],
+                        ]}
+                    />
+                );
+            default:
+                return null;
+        }
+    }, [activeView, navigate, user?.name]);
+
+    return (
+        <AppShell
+            user={user}
+            onLogout={logout}
+            activeView={activeView}
+            setActiveView={setActiveView}
+            projects={projects}
+            activeProjectId={activeProjectId}
+            setActiveProjectId={setActiveProjectId}
+            onAddProject={permissions.viewProjects ? () => navigate('/progetti') : undefined}
+            onQuickAction={openNotice}
+            title={title}
+            showProjectSidebar={permissions.viewProjects}
+        >
+            {utilityOutlet ?? <Outlet context={{ activeProjectId, user }} />}
+        </AppShell>
+    );
+}

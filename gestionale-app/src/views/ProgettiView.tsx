@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-    ChevronDown, ChevronRight, Trash2, Plus, CheckCircle2, Circle, Flag,
+    ChevronDown, ChevronRight, Trash2, Plus, CheckCircle2, Circle, Flag, Pencil,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -26,6 +26,7 @@ const priorityTone = {
 interface ProgettiViewProps {
     projects: Project[];
     onUpdateStatus: (id: string, status: string) => void;
+    onEdit: (project: Project) => void;
     onAddTodo: (projectId: string, text: string, priority: string) => void;
     onToggleTodo: (projectId: string, todoId: string) => void;
     onDeleteTodo: (projectId: string, todoId: string) => void;
@@ -35,7 +36,7 @@ interface ProgettiViewProps {
 }
 
 export function ProgettiView({
-    projects, onUpdateStatus, onAddTodo, onToggleTodo, onDeleteTodo,
+    projects, onUpdateStatus, onEdit, onAddTodo, onToggleTodo, onDeleteTodo,
     onDelete, onOpenAdd, getClientName,
 }: ProgettiViewProps) {
     return (
@@ -64,6 +65,7 @@ export function ProgettiView({
                             project={p}
                             clientName={getClientName(p.clientId || '')}
                             onUpdateStatus={onUpdateStatus}
+                            onEdit={onEdit}
                             onAddTodo={onAddTodo}
                             onToggleTodo={onToggleTodo}
                             onDeleteTodo={onDeleteTodo}
@@ -77,11 +79,12 @@ export function ProgettiView({
 }
 
 function ProjectCard({
-    project, clientName, onUpdateStatus, onAddTodo, onToggleTodo, onDeleteTodo, onDelete,
+    project, clientName, onUpdateStatus, onEdit, onAddTodo, onToggleTodo, onDeleteTodo, onDelete,
 }: {
     project: Project;
     clientName: string;
     onUpdateStatus: (id: string, status: string) => void;
+    onEdit: (project: Project) => void;
     onAddTodo: (projectId: string, text: string, priority: string) => void;
     onToggleTodo: (projectId: string, todoId: string) => void;
     onDeleteTodo: (projectId: string, todoId: string) => void;
@@ -122,6 +125,13 @@ function ProjectCard({
                     >
                         {PROJECT_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
+                    <button
+                        onClick={() => onEdit(project)}
+                        className="icon-btn !w-7 !h-7 text-ink-muted hover:text-brand-300"
+                        aria-label="Modifica progetto"
+                    >
+                        <Pencil className="w-3.5 h-3.5" />
+                    </button>
                     <button
                         onClick={() => onDelete(project.id)}
                         className="icon-btn !w-7 !h-7 text-rose-400 hover:bg-rose-500/10"

@@ -1,5 +1,4 @@
 import type { ReactNode, HTMLAttributes, FC } from 'react';
-import { ExternalLink, MoreHorizontal } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
 export interface CardProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title'> {
@@ -13,7 +12,7 @@ export interface CardProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title'>
     hover?: boolean;
 }
 
-const paddingMap = { none: 'p-0', sm: 'p-3', md: 'p-4', lg: 'p-6' };
+const paddingMap = { none: 'p-0', sm: 'p-3', md: 'px-4 pb-4', lg: 'px-5 pb-5' };
 
 const variantStyles: Record<string, string> = {
     outlined: 'border border-line/60 bg-surface-raised rounded-2xl',
@@ -33,36 +32,30 @@ export const Card: FC<CardProps> = ({
 
     if (isWidget && (variant === 'default' || variant === 'panel')) {
         const shell = variant === 'panel' ? 'bento-panel' : 'card';
-        const notify = (action: string) => {
-            window.dispatchEvent(new CustomEvent('app:notice', {
-                detail: { title: action, message: 'Azione collegata.' },
-            }));
-        };
 
         return (
-            <div className={`${shell} h-full ${className}`} {...rest}>
-                {(title || actions) && (
-                    <div className="flex items-start justify-between px-5 pt-5">
+            <div className={`${shell} h-full flex flex-col ${className}`} {...rest}>
+                {(title || actions || headerAction) && (
+                    <div className="flex items-start justify-between px-4 pt-4 pb-1">
                         <div>
-                            {title && <h3 className="text-sm font-semibold text-ink tracking-tight">{title}</h3>}
-                            {subtitle && <p className="text-xs text-ink-subtle mt-0.5">{subtitle}</p>}
+                            {title && (
+                                <h3 className="text-sm font-semibold text-ink tracking-tight">{title}</h3>
+                            )}
+                            {subtitle && (
+                                <p className="text-xs text-ink-subtle mt-0.5">{subtitle}</p>
+                            )}
                         </div>
-                        <div className="flex items-center gap-1">
-                            {actions}
-                            {headerAction === undefined ? (
-                                <>
-                                    <button type="button" className="icon-btn" aria-label="Apri dettaglio" onClick={() => notify('Dettaglio')}>
-                                        <ExternalLink className="w-4 h-4" />
-                                    </button>
-                                    <button type="button" className="icon-btn" aria-label="Altre opzioni" onClick={() => notify('Altre opzioni')}>
-                                        <MoreHorizontal className="w-4 h-4" />
-                                    </button>
-                                </>
-                            ) : headerAction}
-                        </div>
+                        {(actions || headerAction) && (
+                            <div className="flex items-center gap-0.5 -mr-1 -mt-1">
+                                {actions}
+                                {headerAction}
+                            </div>
+                        )}
                     </div>
                 )}
-                <div className={`${paddingMap[padding]} ${bodyClassName}`}>{children}</div>
+                <div className={`flex-1 min-h-0 ${paddingMap[padding]} ${bodyClassName}`}>
+                    {children}
+                </div>
             </div>
         );
     }
@@ -73,7 +66,7 @@ export const Card: FC<CardProps> = ({
                 'h-full',
                 variantStyles[variant] || variantStyles.outlined,
                 paddingMap[padding],
-                hover && 'transition-shadow hover:shadow-glow-violet cursor-pointer',
+                hover && 'transition-shadow hover:shadow-glow-brand cursor-pointer',
                 className,
             )}
             {...rest}

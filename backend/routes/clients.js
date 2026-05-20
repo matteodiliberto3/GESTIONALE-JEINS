@@ -1,107 +1,132 @@
 import express from 'express';
 import pool from '../database/connection.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { requireClientWrite, requireNotSocio } from '../middleware/authorize.js';
+import { isPrivileged, canAccessClientInArea } from '../lib/roles.js';
+import { parsePagination, buildPaginatedResult, sqlLimitOffset } from '../lib/pagination.js';
+import { AppError } from '../lib/AppError.js';
 
 const router = express.Router();
-
-// Tutte le route richiedono autenticazione
 router.use(authenticateToken);
 
-// GET /api/clients - Lista tutti i clienti
-router.get('/', async (req, res) => {
+router.get('/', requireNotSocio, async (req, res, next) => {
     try {
+        const paginated = req.query.limit !== undefined || req.query.cursor !== undefined;
+        const { limit, offset } = parsePagination(req.query);
+        const params = [];
+        let where = '';
+
+        if (!isPrivileged(req.user.role)) {
+            params.push(req.user.area);
+            where = ' WHERE area = $1 OR area IS NULL';
+        }
+
+        const limitClause = paginated ? sqlLimitOffset(limit, offset) : '';
+
         const result = await pool.query(
-            `SELECT client_id as id, name, contact_person as "contactPerson", 
+            `SELECT client_id as id, name, contact_person as "contactPerson",
                     email, phone, status, area, created_at as "createdAt", version
-             FROM clients
-             ORDER BY created_at DESC`
+             FROM clients${where}
+             ORDER BY created_at DESC${limitClause}`,
+            params,
         );
-        res.json(result.rows);
+
+        if (!paginated) {
+            return res.json(result.rows);
+        }
+
+        const { items, pagination } = buildPaginatedResult(result.rows, { limit, offset });
+        res.json({ items, pagination });
     } catch (error) {
-        console.error('Errore recupero clienti:', error);
-        res.status(500).json({ error: 'Errore interno del server' });
+        next(error);
     }
 });
 
-// GET /api/clients/:id - Dettaglio cliente
-router.get('/:id', async (req, res) => {
+router.get('/:id', requireNotSocio, async (req, res, next) => {
     try {
         const { id } = req.params;
         const result = await pool.query(
-            `SELECT client_id as id, name, contact_person as "contactPerson", 
+            `SELECT client_id as id, name, contact_person as "contactPerson",
                     email, phone, status, area, created_at as "createdAt", version
-             FROM clients
-             WHERE client_id = $1`,
-            [id]
+             FROM clients WHERE client_id = $1`,
+            [id],
         );
 
-        if (result.rows.length === 0) {
+        if (!result.rows.length) {
             return res.status(404).json({ error: 'Cliente non trovato' });
         }
 
-        res.json(result.rows[0]);
+        const client = result.rows[0];
+        if (!canAccessClientInArea(req.user, client.area)) {
+            return res.status(403).json({ error: 'Accesso negato a questo cliente' });
+        }
+
+        res.json(client);
     } catch (error) {
-        console.error('Errore recupero cliente:', error);
-        res.status(500).json({ error: 'Errore interno del server' });
+        next(error);
     }
 });
 
-// POST /api/clients - Crea nuovo cliente
-router.post('/', async (req, res) => {
+router.post('/', requireClientWrite, async (req, res, next) => {
     try {
         const { name, contactPerson, email, phone, status, area } = req.body;
 
         if (!name || !name.trim()) {
-            return res.status(400).json({ error: 'Il nome del cliente è obbligatorio' });
+            throw new AppError('Il nome del cliente è obbligatorio', 400);
         }
+
+        const clientArea = area || req.user.area || null;
 
         const result = await pool.query(
             `INSERT INTO clients (name, contact_person, email, phone, status, area, created_by)
              VALUES ($1, $2, $3, $4, $5, $6, $7)
-             RETURNING client_id as id, name, contact_person as "contactPerson", 
-                       email, phone, status, area, created_at as "createdAt"`,
-            [name.trim(), contactPerson || null, email || null, phone || null, status || 'Prospect', area || null, req.user.userId]
+             RETURNING client_id as id, name, contact_person as "contactPerson",
+                       email, phone, status, area, created_at as "createdAt", version`,
+            [
+                name.trim(),
+                contactPerson || null,
+                email || null,
+                phone || null,
+                status || 'Prospect',
+                clientArea,
+                req.user.userId,
+            ],
         );
 
         res.status(201).json(result.rows[0]);
     } catch (error) {
-        console.error('Errore creazione cliente:', error);
-        res.status(500).json({ error: 'Errore interno del server' });
+        next(error);
     }
 });
 
-// PUT /api/clients/:id - Aggiorna cliente con optimistic locking
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireClientWrite, async (req, res, next) => {
     try {
         const { id } = req.params;
         const { name, contactPerson, email, phone, status, area, expectedVersion } = req.body;
 
-        // Se expectedVersion è fornito, verifica che corrisponda
+        const existing = await pool.query('SELECT area, version FROM clients WHERE client_id = $1', [id]);
+        if (!existing.rows.length) {
+            return res.status(404).json({ error: 'Cliente non trovato' });
+        }
+        if (!canAccessClientInArea(req.user, existing.rows[0].area)) {
+            return res.status(403).json({ error: 'Accesso negato' });
+        }
+
         if (expectedVersion !== undefined) {
-            const currentCheck = await pool.query(
-                'SELECT version FROM clients WHERE client_id = $1',
-                [id]
-            );
-
-            if (currentCheck.rows.length === 0) {
-                return res.status(404).json({ error: 'Cliente non trovato' });
-            }
-
-            const currentVersion = currentCheck.rows[0].version;
+            const currentVersion = existing.rows[0].version;
             if (currentVersion !== expectedVersion) {
                 const serverData = await pool.query(
-                    `SELECT client_id as id, name, contact_person as "contactPerson", 
+                    `SELECT client_id as id, name, contact_person as "contactPerson",
                             email, phone, status, area, version, created_at as "createdAt"
                      FROM clients WHERE client_id = $1`,
-                    [id]
+                    [id],
                 );
-
                 return res.status(409).json({
                     error: 'CONCURRENT_MODIFICATION',
-                    message: 'Il cliente è stato modificato da un altro utente. Ricarica i dati per vedere le modifiche.',
-                    currentVersion: currentVersion,
-                    expectedVersion: expectedVersion,
-                    serverData: serverData.rows[0]
+                    message: 'Il cliente è stato modificato da un altro utente.',
+                    currentVersion,
+                    expectedVersion,
+                    serverData: serverData.rows[0],
                 });
             }
         }
@@ -116,72 +141,59 @@ router.put('/:id', async (req, res) => {
                  area = COALESCE($6, area),
                  updated_at = CURRENT_TIMESTAMP
              WHERE client_id = $7
-             RETURNING client_id as id, name, contact_person as "contactPerson", 
+             RETURNING client_id as id, name, contact_person as "contactPerson",
                        email, phone, status, area, version, created_at as "createdAt"`,
-            [name, contactPerson, email, phone, status, area, id]
+            [name, contactPerson, email, phone, status, area, id],
         );
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'Cliente non trovato' });
-        }
 
         res.json(result.rows[0]);
     } catch (error) {
-        console.error('Errore aggiornamento cliente:', error);
-        res.status(500).json({ error: 'Errore interno del server' });
+        next(error);
     }
 });
 
-// PATCH /api/clients/:id/status - Aggiorna solo lo stato
-router.patch('/:id/status', async (req, res) => {
+router.patch('/:id/status', requireClientWrite, async (req, res, next) => {
     try {
         const { id } = req.params;
         const { status } = req.body;
 
-        if (!status) {
-            return res.status(400).json({ error: 'Stato richiesto' });
+        if (!status) throw new AppError('Stato richiesto', 400);
+
+        const existing = await pool.query('SELECT area FROM clients WHERE client_id = $1', [id]);
+        if (!existing.rows.length) return res.status(404).json({ error: 'Cliente non trovato' });
+        if (!canAccessClientInArea(req.user, existing.rows[0].area)) {
+            return res.status(403).json({ error: 'Accesso negato' });
         }
 
         const result = await pool.query(
-            `UPDATE clients
-             SET status = $1, updated_at = CURRENT_TIMESTAMP
+            `UPDATE clients SET status = $1, updated_at = CURRENT_TIMESTAMP
              WHERE client_id = $2
-             RETURNING client_id as id, name, contact_person as "contactPerson", 
-                       email, phone, status, area, created_at as "createdAt"`,
-            [status, id]
+             RETURNING client_id as id, name, contact_person as "contactPerson",
+                       email, phone, status, area, created_at as "createdAt", version`,
+            [status, id],
         );
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'Cliente non trovato' });
-        }
 
         res.json(result.rows[0]);
     } catch (error) {
-        console.error('Errore aggiornamento stato:', error);
-        res.status(500).json({ error: 'Errore interno del server' });
+        next(error);
     }
 });
 
-// DELETE /api/clients/:id - Elimina cliente
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireClientWrite, async (req, res, next) => {
     try {
         const { id } = req.params;
 
-        const result = await pool.query(
-            'DELETE FROM clients WHERE client_id = $1 RETURNING client_id',
-            [id]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'Cliente non trovato' });
+        const existing = await pool.query('SELECT area FROM clients WHERE client_id = $1', [id]);
+        if (!existing.rows.length) return res.status(404).json({ error: 'Cliente non trovato' });
+        if (!canAccessClientInArea(req.user, existing.rows[0].area)) {
+            return res.status(403).json({ error: 'Accesso negato' });
         }
 
+        await pool.query('DELETE FROM clients WHERE client_id = $1', [id]);
         res.json({ message: 'Cliente eliminato con successo' });
     } catch (error) {
-        console.error('Errore eliminazione cliente:', error);
-        res.status(500).json({ error: 'Errore interno del server' });
+        next(error);
     }
 });
 
 export default router;
-

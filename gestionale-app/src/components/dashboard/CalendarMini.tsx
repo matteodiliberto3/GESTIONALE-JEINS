@@ -4,6 +4,7 @@ import { Card } from '../ui/Card';
 import { Clock } from 'lucide-react';
 import { SPRING } from '../../motion/presets';
 import { useReducedMotion } from '../../motion/useReducedMotion';
+import { openNotice } from '../../utils/notice';
 
 interface MiniEvent {
     id: string;
@@ -33,11 +34,9 @@ function fmtTime(iso: string) {
 }
 
 function isSameDay(a: Date, b: Date) {
-    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
-
-function isToday(d: Date) {
-    return isSameDay(d, new Date());
+    return a.getFullYear() === b.getFullYear()
+        && a.getMonth() === b.getMonth()
+        && a.getDate() === b.getDate();
 }
 
 export function CalendarMini({ events, selectedDate = new Date(), onSelectDate }: CalendarMiniProps) {
@@ -59,37 +58,42 @@ export function CalendarMini({ events, selectedDate = new Date(), onSelectDate }
     }, [events, selectedDate]);
 
     return (
-        <Card variant="panel" title="Calendar" bodyClassName="pt-0">
+        <Card variant="panel" title="Calendario" bodyClassName="pt-1">
             <LayoutGroup id="cal-week">
-                <div className="grid grid-cols-7 gap-1.5 mb-5">
+                <div className="grid grid-cols-7 gap-1.5 mb-4">
                     {days.map(d => {
                         const selected = isSameDay(d, selectedDate);
-                        const today = isToday(d);
                         return (
                             <button
                                 key={d.toISOString()}
                                 type="button"
                                 onClick={() => onSelectDate?.(d)}
-                                className={`relative flex flex-col items-center justify-center rounded-xl py-2.5 overflow-hidden
-                                    ${selected ? 'text-white' : `bento-panel--task border border-line/40 hover:border-brand-500/25
-                                       ${today ? 'ring-1 ring-brand-500/40' : ''}`}`}
+                                className={`relative flex flex-col items-center justify-center
+                                            rounded-xl py-2 overflow-hidden
+                                            ${selected
+                                                ? 'text-white'
+                                                : 'bg-surface-inset/60 border border-line/40 text-ink hover:border-brand-600/30'}`}
                             >
                                 {selected && !reduced && (
                                     <motion.span
                                         layoutId="cal-day-pill"
-                                        className="absolute inset-0 rounded-xl bg-grad-violet shadow-glow-violet border border-brand-500/30"
+                                        className="absolute inset-0 rounded-xl bg-grad-brand shadow-glow-brand"
                                         transition={SPRING.snap}
                                     />
                                 )}
                                 {selected && reduced && (
-                                    <span className="absolute inset-0 rounded-xl bg-grad-violet shadow-glow-violet border border-brand-500/30" />
+                                    <span className="absolute inset-0 rounded-xl bg-grad-brand shadow-glow-brand" />
                                 )}
-                                <span className={`relative z-10 text-base font-semibold leading-none tabular-nums
-                                    ${selected ? 'text-white' : 'text-ink'}`}>
+                                <span
+                                    className={`relative z-10 text-[15px] font-bold tabular-nums leading-none
+                                                ${selected ? 'text-white' : 'text-ink'}`}
+                                >
                                     {d.getDate()}
                                 </span>
-                                <span className={`relative z-10 text-[10px] uppercase mt-1 font-medium tracking-wide
-                                    ${selected ? 'text-white/85' : 'text-ink-muted'}`}>
+                                <span
+                                    className={`relative z-10 text-[9px] uppercase mt-1 font-semibold tracking-wider
+                                                ${selected ? 'text-white/85' : 'text-ink-subtle'}`}
+                                >
                                     {DAY_LABELS[(d.getDay() + 6) % 7]}
                                 </span>
                             </button>
@@ -98,12 +102,15 @@ export function CalendarMini({ events, selectedDate = new Date(), onSelectDate }
                 </div>
             </LayoutGroup>
 
-            <p className="text-[11px] uppercase tracking-[0.18em] text-brand-300/90 font-semibold mb-3">
-                Schedule Today
+            <p className="text-[10px] uppercase tracking-[0.14em] text-ink-subtle font-semibold mb-2">
+                Programma di oggi
             </p>
-            <div className="space-y-2 max-h-44 overflow-y-auto pr-1 scrollbar-thin">
+
+            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1 scrollbar-thin">
                 {todayEvents.length === 0 && (
-                    <p className="text-xs text-ink-muted italic py-2">Nessun evento in programma.</p>
+                    <p className="text-[11px] text-ink-subtle italic py-1.5">
+                        Nessun evento in programma.
+                    </p>
                 )}
                 {todayEvents.map(e => (
                     <motion.button
@@ -111,23 +118,21 @@ export function CalendarMini({ events, selectedDate = new Date(), onSelectDate }
                         type="button"
                         whileTap={reduced ? undefined : { scale: 0.99 }}
                         transition={SPRING.snap}
-                        onClick={() => window.dispatchEvent(new CustomEvent('app:notice', {
-                            detail: {
-                                title: e.title,
-                                message: `${fmtTime(e.startTime)}${e.endTime ? ` - ${fmtTime(e.endTime)}` : ''}`,
-                            },
-                        }))}
-                        className="w-full text-left bento-panel--task px-3 py-2.5 flex items-center gap-3
-                                   border border-line/40 hover:border-brand-500/30
-                                   hover:bg-surface-inset/80 transition-colors"
+                        onClick={() => openNotice(
+                            e.title,
+                            `${fmtTime(e.startTime)}${e.endTime ? ` – ${fmtTime(e.endTime)}` : ''}`,
+                        )}
+                        className="w-full text-left px-2 py-1.5 flex items-center gap-2 rounded-lg
+                                   hover:bg-surface-inset/60 transition-colors"
                     >
-                        <div className="w-1 h-9 rounded-full bg-grad-violet shrink-0 shadow-glow-violet" />
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-ink truncate">{e.title}</p>
-                            <p className="text-[11px] text-ink-muted flex items-center gap-1 mt-0.5">
-                                <Clock className="w-3 h-3 text-ink-subtle shrink-0" />
-                                {fmtTime(e.startTime)}{e.endTime ? ` – ${fmtTime(e.endTime)}` : ''}
-                            </p>
+                        <span className="text-[10px] font-semibold text-ink-subtle tabular-nums w-10 flex-shrink-0">
+                            {fmtTime(e.startTime)}
+                        </span>
+                        <div className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 rounded-lg
+                                        bg-surface-inset/60 border border-line/30">
+                            <span className="w-1 h-5 rounded-full flex-shrink-0 bg-brand-600" />
+                            <p className="text-[11px] font-medium text-ink truncate">{e.title}</p>
+                            <Clock className="w-3 h-3 text-ink-subtle flex-shrink-0 ml-auto" />
                         </div>
                     </motion.button>
                 ))}

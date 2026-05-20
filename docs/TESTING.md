@@ -9,7 +9,22 @@ Questa documentazione è destinata a:
 
 ## Panoramica
 
-**⚠️ STATO ATTUALE**: Il sistema **non implementa** ancora test automatici. Questo documento descrive la **strategia consigliata** per implementare testing in futuro.
+**Stato attuale**: il backend include test automatici con **Node.js test runner** e **Supertest**.
+
+```bash
+cd backend
+npm test
+```
+
+Suite in `backend/test/`:
+- `app.test.js` — health, validazione auth
+- `registrationRoles.test.js` — codice registrazione elevata
+- `roles.test.js` — RBAC helper
+- `pagination.test.js`, `authService.test.js`
+
+CI: `.github/workflows/backend.yml` esegue `npm test` su push/PR che toccano `backend/`.
+
+Il resto del documento descrive estensioni future (E2E Playwright, copertura frontend).
 
 ## Strategia di Testing
 

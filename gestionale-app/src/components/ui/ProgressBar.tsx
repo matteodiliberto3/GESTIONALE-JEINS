@@ -2,18 +2,21 @@ import { motion } from 'framer-motion';
 import { TRANSITION } from '../../motion/presets';
 import { useReducedMotion } from '../../motion/useReducedMotion';
 
+type Tone = 'brand' | 'violet' | 'cyan' | 'pink' | 'emerald' | 'amber';
+
 interface ProgressBarProps {
     value: number;
     max?: number;
-    tone?: 'violet' | 'cyan' | 'pink' | 'emerald' | 'amber';
+    tone?: Tone;
     showLabel?: boolean;
     height?: 'thin' | 'normal' | 'thick';
 }
 
-const toneClass = {
-    violet:  'bg-grad-violet',
+const toneClass: Record<Tone, string> = {
+    brand:   'bg-grad-brand-soft',
+    violet:  'bg-grad-brand-soft',
     cyan:    'bg-grad-cyan',
-    pink:    'bg-grad-pink',
+    pink:    'bg-grad-emerald',
     emerald: 'bg-grad-emerald',
     amber:   'bg-amber-500',
 };
@@ -21,7 +24,7 @@ const toneClass = {
 const heights = { thin: 'h-1', normal: 'h-1.5', thick: 'h-2.5' };
 
 export function ProgressBar({
-    value, max = 100, tone = 'violet', showLabel = false, height = 'normal',
+    value, max = 100, tone = 'brand', showLabel = false, height = 'normal',
 }: ProgressBarProps) {
     const reduced = useReducedMotion();
     const pct = Math.max(0, Math.min(100, (value / max) * 100));
@@ -30,8 +33,8 @@ export function ProgressBar({
         <div className="w-full">
             {showLabel && (
                 <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] text-ink-subtle">Progress</span>
-                    <span className="text-[11px] font-medium text-ink">{Math.round(pct)}%</span>
+                    <span className="text-xs text-ink-subtle">Avanzamento</span>
+                    <span className="text-xs font-medium text-ink">{Math.round(pct)}%</span>
                 </div>
             )}
             <div className={`progress-glass w-full ${heights[height]}`}>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { KanbanBoard } from './KanbanBoard';
 import { BentoCell } from '../motion/BentoCell';
@@ -9,8 +9,9 @@ import { TimeSheet } from './TimeSheet';
 import { SprintVelocity } from './SprintVelocity';
 import { ActivityFeed } from './ActivityFeed';
 import { CalendarMini } from './CalendarMini';
-import { PromoCard } from './PromoCard';
-import { Plus, X } from 'lucide-react';
+import { ChatDetails } from './ChatDetails';
+import { Plus, X, Sparkles } from 'lucide-react';
+import { openNotice } from '../../utils/notice';
 import {
     tasksAPI, sprintsAPI, activitiesAPI, timeAPI,
     eventsAPI, usersAPI,
@@ -28,6 +29,7 @@ interface DashboardViewProps {
 export function DashboardView({ activeProjectId, currentUser }: DashboardViewProps) {
     const [columns, setColumns] = useState<BoardColumn[]>([]);
     const [tasks, setTasks] = useState<Task[]>([]);
+    const [hasRealTasks, setHasRealTasks] = useState(false);
     const [activeSprint, setActiveSprint] = useState<Sprint | null>(null);
     const [activities, setActivities] = useState<Activity[]>([]);
     const [timeSummary, setTimeSummary] = useState<TimeEntrySummary[]>([]);
@@ -61,8 +63,20 @@ export function DashboardView({ activeProjectId, currentUser }: DashboardViewPro
                     ? (colsRaw as BoardColumn[])
                     : DEFAULT_COLUMNS;
 
+                const realTasks = tasksRaw as Task[];
+                const hydratedTasks =
+                    realTasks.length > 0
+                        ? realTasks
+                        : import.meta.env.PROD
+                          ? []
+                          : mockTasks(
+                                cols,
+                                (users as User[]).length ? (users as User[]) : mockMembers,
+                            );
+
                 setColumns(cols);
-                setTasks(tasksRaw as Task[]);
+                setHasRealTasks(realTasks.length > 0);
+                setTasks(hydratedTasks);
                 setActiveSprint(sprint as Sprint | null);
                 setActivities(acts as Activity[]);
                 setTimeSummary(sum as TimeEntrySummary[]);
@@ -77,25 +91,86 @@ export function DashboardView({ activeProjectId, currentUser }: DashboardViewPro
         return () => { cancelled = true; };
     }, [activeProjectId]);
 
-    const displayTasks: Task[] = useMemo(() => {
-        if (tasks.length > 0) return tasks;
-        return mockTasks(columns.length ? columns : DEFAULT_COLUMNS, members);
-    }, [tasks, columns, members]);
+    const displayTasks: Task[] = tasks;
 
-    const displayActivities = activities.length ? activities : mockActivities(members);
-    const displayTimeSummary = timeSummary.length ? timeSummary : mockTimeSummary(members);
-    const displaySprint = activeSprint || mockSprint;
-    const displayEvents = events.length ? events : mockEvents();
+    const useDemoFallback = !import.meta.env.PROD;
+    const displayActivities =
+        activities.length ? activities : useDemoFallback ? mockActivities(members) : [];
+    const displayTimeSummary =
+        timeSummary.length ? timeSummary : useDemoFallback ? mockTimeSummary(members) : [];
+    const displaySprint = activeSprint || (useDemoFallback ? mockSprint : null);
+    const displayEvents = events.length ? events : useDemoFallback ? mockEvents() : [];
 
-    const handleMoveTask = async (taskId: string, columnId: string, position: number) => {
-        setTasks(prev => prev.map(t =>
-            t.id === taskId ? { ...t, columnId, position } : t
-        ));
+    const handleMoveTask = async (taskId: string, targetColumnId: string, targetPosition: number) => {
+        let movedTask: Task | undefined;
+        let reindexedTargetTasks: Task[] = [];
+
+        setTasks(prev => {
+            const moving = prev.find(t => t.id === taskId);
+            if (!moving) return prev;
+            movedTask = moving;
+            const sourceColumnId = moving.columnId;
+
+            const sourceList = prev
+                .filter(t => t.columnId === sourceColumnId && t.id !== taskId)
+                .sort((a, b) => a.position - b.position);
+
+            const targetList = sourceColumnId === targetColumnId
+                ? sourceList
+                : prev
+                    .filter(t => t.columnId === targetColumnId && t.id !== taskId)
+                    .sort((a, b) => a.position - b.position);
+
+            const clampedPos = Math.max(0, Math.min(targetPosition, targetList.length));
+            const updatedMoved: Task = { ...moving, columnId: targetColumnId, position: clampedPos };
+            targetList.splice(clampedPos, 0, updatedMoved);
+
+            const reindexed = new Map<string, Task>();
+            targetList.forEach((t, idx) => {
+                reindexed.set(t.id, { ...t, position: idx });
+            });
+            if (sourceColumnId !== targetColumnId) {
+                sourceList.forEach((t, idx) => {
+                    reindexed.set(t.id, { ...t, position: idx });
+                });
+            }
+            reindexedTargetTasks = Array.from(reindexed.values());
+
+            return prev.map(t => reindexed.get(t.id) || t);
+        });
+
+        if (!movedTask) return;
+
+        if (!hasRealTasks || !activeProjectId) return;
+
         try {
-            if (tasks.length > 0) await tasksAPI.move(taskId, columnId, position);
+            await tasksAPI.move(
+                taskId,
+                targetColumnId,
+                reindexedTargetTasks.find(t => t.id === taskId)?.position ?? targetPosition,
+            );
         } catch (err) {
             console.error('Errore move task:', err);
         }
+    };
+
+    const handleSortColumnByPriority = (columnId: string) => {
+        const order: Record<string, number> = { 'Alta': 0, 'Media': 1, 'Bassa': 2 };
+        setTasks(prev => {
+            const inColumn = prev
+                .filter(t => t.columnId === columnId)
+                .sort((a, b) => {
+                    const pa = order[a.priority] ?? 99;
+                    const pb = order[b.priority] ?? 99;
+                    if (pa !== pb) return pa - pb;
+                    return a.position - b.position;
+                });
+            const newPositions = new Map(inColumn.map((t, idx) => [t.id, idx]));
+            return prev.map(t =>
+                newPositions.has(t.id) ? { ...t, position: newPositions.get(t.id)! } : t
+            );
+        });
+        openNotice('Ordinata per priorità', 'Alta → Media → Bassa nella colonna.');
     };
 
     const handleAddTask = async (columnId: string) => {
@@ -143,23 +218,34 @@ export function DashboardView({ activeProjectId, currentUser }: DashboardViewPro
             setTasks(prev => prev.map(t => t.id === optimistic.id ? created : t));
         } catch (err) {
             console.error('Errore creazione task:', err);
-            window.dispatchEvent(new CustomEvent('app:notice', {
-                detail: {
-                    title: 'Task creato localmente',
-                    message: 'Il task resta visibile in questa sessione, ma il salvataggio sul server non è riuscito.',
-                },
-            }));
+            openNotice(
+                'Task creato localmente',
+                'Visibile in questa sessione; salvataggio sul server non riuscito.',
+            );
         }
     };
 
     const cols = columns.length ? columns : DEFAULT_COLUMNS;
-    const avgPoints = displaySprint?.completedPoints
-        ? Number(((displaySprint.completedPoints / Math.max(1, displaySprint.targetPoints)) * 100).toFixed(2))
-        : 87.29;
+    const showPreview = useDemoFallback && (!hasRealTasks || !activities.length);
+    const sprintHistory = useDemoFallback && displaySprint
+        ? [
+            { label: 'Gen', value: 72 },
+            { label: 'Feb', value: 81 },
+            { label: 'Mar', value: 76 },
+            { label: 'Apr', value: Math.min(100, Math.round((displaySprint.completedPoints / Math.max(1, displaySprint.targetPoints)) * 100)) },
+        ]
+        : [];
 
     const reducedMotion = useReducedMotion();
 
     return (
+        <>
+        {showPreview && (
+            <div className="preview-banner" role="status">
+                <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>Anteprima — dati dimostrativi finché il progetto non ha contenuti reali.</span>
+            </div>
+        )}
         <motion.div
             className="dashboard-bento"
             variants={reducedMotion ? undefined : bentoStagger}
@@ -172,6 +258,7 @@ export function DashboardView({ activeProjectId, currentUser }: DashboardViewPro
                     tasks={displayTasks}
                     onMoveTask={handleMoveTask}
                     onAddTask={handleAddTask}
+                    onSortColumnByPriority={handleSortColumnByPriority}
                 />
             </BentoCell>
 
@@ -193,17 +280,7 @@ export function DashboardView({ activeProjectId, currentUser }: DashboardViewPro
             </BentoCell>
 
             <BentoCell className="bento-velocity">
-                <SprintVelocity
-                    sprint={displaySprint}
-                    avgPoints={avgPoints}
-                    deltaPct={24}
-                    history={[
-                        { label: 'Gen', value: 72 },
-                        { label: 'Feb', value: 81 },
-                        { label: 'Mar', value: 76 },
-                        { label: 'Apr', value: 87 },
-                    ]}
-                />
+                <SprintVelocity sprint={displaySprint} history={sprintHistory} />
             </BentoCell>
 
             <BentoCell className="bento-calendar">
@@ -214,17 +291,14 @@ export function DashboardView({ activeProjectId, currentUser }: DashboardViewPro
                 />
             </BentoCell>
 
-            <BentoCell className="bento-promo">
-                <PromoCard
-                    onAction={() => window.dispatchEvent(new CustomEvent('app:notice', {
-                        detail: {
-                            title: 'Premium',
-                            message: 'Feature premium selezionata. Puoi collegare qui report avanzati, automazioni o upgrade piano.',
-                        },
-                    }))}
+            <BentoCell className="bento-chat">
+                <ChatDetails
+                    members={members}
+                    onOpen={() => openNotice('Chat di progetto', 'Messaggi e file condivisi in arrivo.')}
                 />
             </BentoCell>
         </motion.div>
+        </>
     );
 }
 
@@ -263,7 +337,7 @@ function TaskComposerDialog({
             <form onSubmit={submit}>
                 <div className="flex items-start justify-between gap-4">
                     <div>
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-brand-300 font-semibold">
+                        <p className="text-[11px] uppercase tracking-[0.14em] text-brand-400 font-semibold">
                             Nuovo task
                         </p>
                         <h3 id="task-composer-title" className="text-lg font-semibold text-ink mt-1">
@@ -308,18 +382,18 @@ function TaskComposerDialog({
 // --- Fallback / mock data (per popolare la dashboard quando il DB è vuoto) ---
 
 const DEFAULT_COLUMNS: BoardColumn[] = [
-    { id: 'col-progress', projectId: 'demo', name: 'In Progress',     accent: 'violet',  position: 0 },
-    { id: 'col-design',   projectId: 'demo', name: 'Ready to Design', accent: 'cyan',    position: 1 },
-    { id: 'col-review',   projectId: 'demo', name: 'Final Review',    accent: 'pink',    position: 2 },
-    { id: 'col-done',     projectId: 'demo', name: 'Completed',       accent: 'emerald', position: 3 },
+    { id: 'col-progress', projectId: 'demo', name: 'In corso',      accent: 'emerald', position: 0 },
+    { id: 'col-design',   projectId: 'demo', name: 'In design',     accent: 'emerald', position: 1 },
+    { id: 'col-review',   projectId: 'demo', name: 'In revisione',  accent: 'emerald', position: 2 },
+    { id: 'col-done',     projectId: 'demo', name: 'Completati',    accent: 'emerald', position: 3 },
 ];
 
 const mockMembers: User[] = [
-    { id: 'u1', name: 'Mehmet Oguz', color: '#8B5CF6', handle: '@mehmet' },
-    { id: 'u2', name: 'Sarah Lin',   color: '#EC4899', handle: '@sarah' },
-    { id: 'u3', name: 'Aramin Gjadi',color: '#22D3EE', handle: '@aramin' },
-    { id: 'u4', name: 'Lia Ferri',   color: '#10B981', handle: '@lia' },
-    { id: 'u5', name: 'Ben West',    color: '#F59E0B', handle: '@ben' },
+    { id: 'u1', name: 'Marco Rossi',    color: '#1a7a55', handle: '@marco' },
+    { id: 'u2', name: 'Laura Bianchi',  color: '#3ba876', handle: '@laura' },
+    { id: 'u3', name: 'Giulia Verdi',   color: '#145c42', handle: '@giulia' },
+    { id: 'u4', name: 'Paolo Neri',     color: '#5fc494', handle: '@paolo' },
+    { id: 'u5', name: 'Sara Colombo',   color: '#0f3d2e', handle: '@sara' },
 ];
 
 function mockTasks(columns: BoardColumn[], members: User[]): Task[] {
@@ -331,17 +405,28 @@ function mockTasks(columns: BoardColumn[], members: User[]): Task[] {
         return d.toISOString().split('T')[0];
     };
     const samples: Partial<Task>[] = [
-        { title: 'Refine Dashboard Navigation', priority: 'Alta', startDate: iso(-2), dueDate: iso(5), columnId: columns[0]?.id, sprintName: 'Sprint 2', subtasksCount: 2 } as any,
-        { title: 'Improve Board Responsiveness for Mobile Devices', priority: 'Alta', columnId: columns[0]?.id, sprintName: 'Sprint 2' } as any,
-        { title: 'Implement Dark Mode Toggle', priority: 'Bassa', startDate: iso(0), dueDate: iso(7), columnId: columns[1]?.id, sprintName: 'Sprint 2' } as any,
-        { title: 'Customize User Roles and Permissions for Teams', priority: 'Media', startDate: iso(1), dueDate: iso(10), columnId: columns[1]?.id, sprintName: 'Sprint 3', subtasksCount: 2 } as any,
-        { title: 'Enhance Visual Feedback', priority: 'Media', startDate: iso(-1), dueDate: iso(4), columnId: columns[2]?.id, sprintName: 'Sprint 2', subtasksCount: 2 } as any,
-        { title: 'Refine Empty States Across Modules', priority: 'Bassa', columnId: columns[3]?.id, sprintName: 'Sprint 1' } as any,
+        { title: 'Affinare navigazione dashboard', priority: 'Alta',  startDate: iso(-2), dueDate: iso(5),  columnId: columns[0]?.id, sprintName: 'Sprint 7', subtasksCount: 2 } as any,
+        { title: 'Migliorare responsive del board', priority: 'Alta', columnId: columns[0]?.id, sprintName: 'Sprint 7' } as any,
+        { title: 'Audit accessibilità dashboard', priority: 'Media', startDate: iso(0), dueDate: iso(8), columnId: columns[0]?.id, sprintName: 'Sprint 7' } as any,
+        { title: 'Micro-interazioni coerenti', priority: 'Bassa', columnId: columns[0]?.id, sprintName: 'Sprint 7' } as any,
+
+        { title: 'Toggle tema chiaro/scuro', priority: 'Bassa', startDate: iso(0), dueDate: iso(7), columnId: columns[1]?.id, sprintName: 'Sprint 7' } as any,
+        { title: 'Ruoli e permessi utente', priority: 'Media', startDate: iso(-6), dueDate: iso(0), columnId: columns[1]?.id, sprintName: 'Sprint 7', subtasksCount: 2 } as any,
+        { title: 'Stati vuoti onboarding', priority: 'Media', columnId: columns[1]?.id, sprintName: 'Sprint 7' } as any,
+        { title: 'Scala spaziatura token', priority: 'Bassa', columnId: columns[1]?.id, sprintName: 'Sprint 7' } as any,
+        { title: 'Specifiche drawer notifiche', priority: 'Media', columnId: columns[1]?.id, sprintName: 'Sprint 7' } as any,
+
+        { title: 'Feedback visivo azioni', priority: 'Media', startDate: iso(-1), dueDate: iso(4), columnId: columns[2]?.id, sprintName: 'Sprint 7', subtasksCount: 2 } as any,
+        { title: 'Linee guida motion', priority: 'Media', columnId: columns[2]?.id, sprintName: 'Sprint 7' } as any,
+        { title: 'Review stakeholder v3', priority: 'Alta', startDate: iso(2), dueDate: iso(3), columnId: columns[2]?.id, sprintName: 'Sprint 7' } as any,
+
+        { title: 'Stati vuoti moduli', priority: 'Bassa', columnId: columns[3]?.id, sprintName: 'Sprint 6' } as any,
+        { title: 'Pacchetto handoff cliente', priority: 'Media', columnId: columns[3]?.id, sprintName: 'Sprint 6' } as any,
     ];
     return samples.map((s, i) => ({
         id: `mock-${i}`,
         projectId: 'demo',
-        projectName: 'Project Board',
+        projectName: 'Board progetto',
         columnId: s.columnId || columns[0]?.id || null,
         sprintId: null,
         sprintName: (s as any).sprintName || 'Sprint 2',
@@ -371,19 +456,28 @@ function mockActivities(members: User[]): Activity[] {
     return [
         {
             id: 'a1', actorId: team[0].id, actorName: team[0].name, actorColor: team[0].color,
-            type: 'file.uploaded', payload: { fileName: 'Project Brief.txt', size: '24.5 MB', progress: 43, target: 'Client Brief' },
+            type: 'file.uploaded',
+            payload: { fileName: 'Brief cliente.pdf', size: '2,4 MB', progress: 43, target: 'Brief cliente' },
             createdAt: new Date(now - 1000 * 60 * 4).toISOString(),
         },
         {
             id: 'a2', actorId: team[1]?.id || team[0].id, actorName: team[1]?.name || team[0].name, actorColor: team[1]?.color,
             type: 'comment.added',
-            payload: { body: 'Awesome design! Love how you handled the spacing.', target: 'Enhance Visual Feedback' },
+            payload: {
+                body: 'Ottimo lavoro sullo spacing. Dove trovo il file aggiornato?',
+                target: 'Feedback visivo azioni',
+                reply: { author: 'laura', text: 'Link in condivisione progetto.' },
+            },
             createdAt: new Date(now - 1000 * 60 * 18).toISOString(),
         },
         {
             id: 'a3', actorId: team[2]?.id || team[0].id, actorName: team[2]?.name || team[0].name, actorColor: team[2]?.color,
-            type: 'mention',
-            payload: { body: 'Just having a blast with these activity components!', target: 'Dev.ui Kit' },
+            type: 'comment.added',
+            payload: {
+                body: 'Il feed attività è molto chiaro. Possiamo usarlo anche per i clienti?',
+                target: 'Dashboard JEINS',
+                reply: { author: 'giulia', text: 'Sì, in roadmap.' },
+            },
             createdAt: new Date(now - 1000 * 60 * 60).toISOString(),
         },
     ] as Activity[];
@@ -391,22 +485,28 @@ function mockActivities(members: User[]): Activity[] {
 
 function mockTimeSummary(members: User[]): TimeEntrySummary[] {
     const team = members.length ? members : mockMembers;
-    return team.slice(0, 5).map((u, i) => ({
+    const order = ['Marco Rossi', 'Laura Bianchi', 'Giulia Verdi', 'Paolo Neri'];
+    const sorted = order
+        .map(n => team.find(u => u.name === n))
+        .concat(team)
+        .filter((u, i, arr): u is User => Boolean(u) && arr.findIndex(x => x?.id === u?.id) === i);
+
+    return sorted.slice(0, 4).map((u, i) => ({
         id: u.id,
         name: u.name,
         avatarUrl: u.avatarUrl,
         handle: u.handle,
         color: u.color,
-        totalHours: 22 - i * 3.5,
-        entryCount: 18 - i * 2,
+        totalHours: [0.5, 0.35, 0.28, 0.18][i] ?? 0.15,
+        entryCount: 14 - i * 2,
     }));
 }
 
 const mockSprint: Sprint = {
     id: 'sprint-mock',
     projectId: null,
-    name: 'Sprint 2 / Ready to design',
-    goal: 'Refine dashboard',
+    name: 'Sprint 2 · Design',
+    goal: 'Completare dashboard',
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14).toISOString().split('T')[0],
     targetPoints: 100,
@@ -422,9 +522,9 @@ function mockEvents() {
         return d.toISOString();
     };
     return [
-        { id: 'e1', title: 'Refine Dashboard Navigation Flow', startTime: at(8, 0),  endTime: at(9, 0) },
-        { id: 'e2', title: 'Customize User Roles and Permissions', startTime: at(10, 30), endTime: at(11, 30) },
-        { id: 'e3', title: 'Sprint Review', startTime: at(12, 0), endTime: at(12, 45) },
+        { id: 'e1', title: 'Sync navigazione dashboard', startTime: at(8, 0),  endTime: at(9, 0) },
+        { id: 'e2', title: 'Workshop ruoli e permessi', startTime: at(10, 30), endTime: at(11, 30) },
+        { id: 'e3', title: 'Sprint review', startTime: at(12, 0), endTime: at(12, 45) },
     ];
 }
 

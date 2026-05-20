@@ -1,4 +1,4 @@
-import { Search, Bell, NotebookPen, ChevronDown, LogOut } from 'lucide-react';
+import { Search, Bell, NotebookPen, MessageSquare, ChevronDown, LogOut } from 'lucide-react';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { dropdown } from '../motion/variants';
@@ -18,10 +18,10 @@ const SEARCH_TARGETS = [
     { label: 'Dashboard', hint: 'Panoramica e Kanban', view: 'dashboard' },
     { label: 'Clienti', hint: 'Anagrafica e stato commerciale', view: 'clienti' },
     { label: 'Progetti', hint: 'Progetti e todo list', view: 'progetti' },
-    { label: 'Contabilita', hint: 'Contratti, fatture e preventivi', view: 'contabilita' },
+    { label: 'Contabilità', hint: 'Contratti, fatture e preventivi', view: 'contabilita' },
     { label: 'Calendario', hint: 'Eventi e chiamate', view: 'calendario' },
     { label: 'Inbox', hint: 'Messaggi e richieste', view: 'inbox' },
-    { label: 'Reports', hint: 'Metriche e riepiloghi', view: 'reports' },
+    { label: 'Report', hint: 'Metriche e riepiloghi', view: 'reports' },
     { label: 'Notifiche', hint: 'Aggiornamenti recenti', view: 'notifiche' },
 ];
 
@@ -73,9 +73,18 @@ export function TopBar({ user, onLogout, onNavigate, onQuickAction }: TopBarProp
                         if (e.key === 'Enter' && results[0]) goTo(results[0].view);
                         if (e.key === 'Escape') setSearchOpen(false);
                     }}
-                    placeholder="Search"
-                    className="search-pill"
+                    placeholder="Cerca sezioni…"
+                    className="search-pill pr-12"
                 />
+                <kbd
+                    aria-hidden
+                    className="absolute right-3 top-1/2 -translate-y-1/2
+                               text-[10px] font-medium text-ink-subtle
+                               px-1.5 py-0.5 rounded-md border border-line/60
+                               bg-surface-inset/70 pointer-events-none"
+                >
+                    /
+                </kbd>
                 <AnimatePresence>
                     {searchOpen && (
                         <motion.div
@@ -121,7 +130,14 @@ export function TopBar({ user, onLogout, onNavigate, onQuickAction }: TopBarProp
                     onClick={() => onNavigate?.('notifiche')}
                 >
                     <Bell className="w-4 h-4" />
-                    <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-rose-500 ring-2 ring-surface-raised" />
+                    <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-brand-500 ring-2 ring-surface-raised" />
+                </button>
+                <button
+                    className="icon-btn"
+                    aria-label="Chat"
+                    onClick={() => onNavigate?.('inbox')}
+                >
+                    <MessageSquare className="w-4 h-4" />
                 </button>
 
                 <div className="relative" ref={ref}>

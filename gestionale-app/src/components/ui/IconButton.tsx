@@ -10,7 +10,7 @@ interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 const variants: Record<string, string> = {
     ghost: 'text-ink-muted hover:bg-surface-inset hover:text-ink',
     soft:  'bg-surface-inset text-ink-muted hover:text-ink border border-line/60',
-    solid: 'bg-grad-violet text-white shadow-glow-violet',
+    solid: 'bg-grad-brand text-white shadow-glow-brand',
 };
 
 export function IconButton({
