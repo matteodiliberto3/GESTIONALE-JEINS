@@ -61,7 +61,19 @@ Mock in `gestionale-app/src/lib/api/mock.ts` (import dinamico). Attivazione da `
 ## Documentazione
 
 - `ARCHITETTURA.md` — deploy e API
-- `docs/` — documentazione aggiuntiva
+- `docs/` — documentazione aggiuntiva (RBAC, glossario, reference)
+
+### Walkthrough (percorsi didattici)
+
+**Punto di ingresso:** [walkthrough/00-PERCORSI.md](walkthrough/00-PERCORSI.md) — scegli il profilo (neofita dev, design engineer, mid E2E, architettura).
+
+| Track | Pubblico | Indice |
+|-------|----------|--------|
+| [FOUNDATIONS](walkthrough/FOUNDATIONS/00-INDICE.md) | PRE-DE-A — git, React, HTTP, avvio repo | cap 0–4 |
+| [DESIGN-ENGINEER](walkthrough/DESIGN-ENGINEER/00-INDICE.md) | Craft UI su design system JEINS | PRE-DE-B + cap 0–10 |
+| [MID-LEVEL](walkthrough/MID-LEVEL/00-INDICE.md) | Feature end-to-end (DB → API → Page → PR) | cap 0–10 |
+| [frontend](walkthrough/frontend/00-INDICE.md) | Architettura e trade-off FE | moduli 1–7 |
+| [BACKEND](walkthrough/BACKEND/00-INDICE.md) | Architettura server | cap 1–28 |
 
 ## Deploy (Render)
 

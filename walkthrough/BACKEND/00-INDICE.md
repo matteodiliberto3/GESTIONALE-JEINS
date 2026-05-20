@@ -12,6 +12,7 @@
 - Documentazione esistente in `docs/` e `ARCHITETTURA.md` viene **referenziata**, non duplicata pedissequamente.
 - Ogni capitolo redatto include **diagrammi Mermaid** (container, pattern, sequenze, stati) per la lettura ad alto livello.
 - Per **implementare** route, migration e PR sul backend in modo operativo: [Playbook Mid-Level](../MID-LEVEL/00-INDICE.md) (Cap. 1, 4, 6, 9) — questo manuale resta sulla profondità architetturale.
+- Ingresso neofita (git, React, HTTP): [FOUNDATIONS PRE-DE-A](../FOUNDATIONS/00-INDICE.md) — hub [00-PERCORSI.md](../00-PERCORSI.md).
 
 ---
 

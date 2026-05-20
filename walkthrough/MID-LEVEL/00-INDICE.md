@@ -3,15 +3,21 @@
 **Ruolo del documento:** portare un Junior (sintassi React + Node base) a **Mid-Level autonomo** su feature **end-to-end**, seguendo le convenzioni **reali** di questa repository.
 
 **Non sostituisce:**
+- [FOUNDATIONS PRE-DE-A](../FOUNDATIONS/00-INDICE.md) — git, React, HTTP, avvio repo (ingresso neofita dev)
 - [Manuale Backend](../BACKEND/00-INDICE.md) — architettura e profondità server
 - [Manuale Frontend](../frontend/00-INDICE.md) — teoria UI e trade-off
+- [Design Engineer](../DESIGN-ENGINEER/00-INDICE.md) — craft visivo (PRE-DE-B, token, stati, motion, review UI)
+
+**Hub percorsi:** [00-PERCORSI.md](../00-PERCORSI.md)
 
 **Quando usare quale manuale**
 
 | Obiettivo | Leggi |
 |-----------|--------|
+| Mai usato git/React in produzione | [FOUNDATIONS](../FOUNDATIONS/00-INDICE.md) cap **0–4** → poi Cap. 0 (rinforzo) |
 | Consegnare una feature (migration, API, Page, PR) | Questo playbook, Cap. 0 → 1 → 2–5 → 9 |
 | Capire *perché* React Query / RBAC / design system | [frontend](../frontend/00-INDICE.md) (teoria e trade-off) |
+| Ragionare su UI visiva (gerarchia, stati, a11y, motion) | [DESIGN-ENGINEER](../DESIGN-ENGINEER/00-INDICE.md) |
 | Capire *perché* pool, transazioni, async, scala | [BACKEND](../BACKEND/00-INDICE.md) |
 
 ---

@@ -4,6 +4,8 @@
 **Non è:** un corso su sintassi React, TypeScript o Tailwind.  
 **È:** un manuale su *modelli mentali*, *scelte architetturali*, *design pattern* e *best practice* dell’infrastruttura frontend di `gestionale-app/`.
 
+**Ingresso neofita:** [FOUNDATIONS PRE-DE-A](../FOUNDATIONS/00-INDICE.md) (dev) → [DESIGN-ENGINEER PRE-DE-B](../DESIGN-ENGINEER/cap00-pre-de-b-fondamenta-design-engineering.md) (craft) — hub [00-PERCORSI.md](../00-PERCORSI.md).
+
 **Convenzioni del manuale**
 
 - Ogni capitolo apre con **contesto** e chiude con **trade-off** + (dove utile) **limiti noti nel repo**.
@@ -259,3 +261,6 @@
 | RBAC (backend + doc) | `docs/RBAC.md`, `backend/lib/permissions.js` |
 | Manuale backend (parallelo) | `walkthrough/BACKEND/00-INDICE.md` |
 | Playbook operativo Mid-Level (feature E2E, PR) | [walkthrough/MID-LEVEL/00-INDICE.md](../MID-LEVEL/00-INDICE.md) |
+| Fondamenta dev (PRE-DE-A) | [walkthrough/FOUNDATIONS/00-INDICE.md](../FOUNDATIONS/00-INDICE.md) |
+| Hub percorsi walkthrough | [walkthrough/00-PERCORSI.md](../00-PERCORSI.md) |
+| Design Engineer (PRE-DE-B + craft DS JEINS) | [walkthrough/DESIGN-ENGINEER/00-INDICE.md](../DESIGN-ENGINEER/00-INDICE.md) |
