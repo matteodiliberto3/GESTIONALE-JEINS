@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { authAPI } from '../services/api.ts';
+import { showNotice } from '../utils/notice';
 import { LogIn, UserPlus, Mail, Lock, AlertCircle, User, Sparkles } from 'lucide-react';
 interface LoginProps {
     onLoginSuccess: (user: any, token?: string) => void;
@@ -28,19 +29,56 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                 onLoginSuccess(response.user, response.token);
             } else {
                 if (!name) { setError('Il nome è obbligatorio'); setLoading(false); return; }
+                const code = managerCode.trim();
                 const response = await authAPI.register({
                     name,
                     email,
                     password,
                     area,
-                    ...(managerCode.trim() ? { managerCode: managerCode.trim() } : {}),
+                    ...(code ? { managerCode: code } : {}),
                 });
+                const role = response.user?.role as string | undefined;
+                if (code) {
+                    if (role && role !== 'Socio') {
+                        showNotice(
+                            'success',
+                            'Codice accettato',
+                            `Registrazione completata con accesso ${role} (${area}).`,
+                        );
+                    } else {
+                        showNotice(
+                            'warning',
+                            'Registrazione completata',
+                            'Il codice non ha assegnato un ruolo elevato; account creato come Socio.',
+                        );
+                    }
+                } else {
+                    showNotice('success', 'Registrazione completata', 'Il tuo account è pronto.');
+                }
                 localStorage.setItem('token', response.token);
                 localStorage.setItem('user', JSON.stringify(response.user));
                 onLoginSuccess(response.user, response.token);
             }
         } catch (err: any) {
-            setError(err.message || 'Errore durante l\'operazione');
+            const msg = err.message || 'Errore durante l\'operazione';
+            if (!isLogin && (msg.includes('codice') || msg.includes('Codice'))) {
+                if (msg.includes('non disponibile')) {
+                    showNotice(
+                        'error',
+                        'Codice non disponibile',
+                        'La registrazione elevata non è attiva sul server.',
+                    );
+                } else if (msg.includes('non valido')) {
+                    showNotice(
+                        'error',
+                        'Codice errato',
+                        'Il codice CDA/Manager non è corretto. Controlla e riprova.',
+                    );
+                } else {
+                    showNotice('error', 'Registrazione con codice', msg);
+                }
+            }
+            setError(msg);
         } finally {
             setLoading(false);
         }

@@ -55,22 +55,28 @@ export const Toast: React.FC<ToastProps> = ({
 
   const Icon = iconMap[type];
 
+  const [title, ...rest] = message.split(' — ');
+  const body = rest.length > 0 ? rest.join(' — ') : null;
+
   return (
     <div
       className={cn(
-        'flex items-start gap-3 p-3.5 rounded-xl border shadow-panel',
+        'flex items-start gap-3 p-3.5 rounded-2xl border shadow-panel backdrop-blur-xl',
         'min-w-[280px] max-w-[420px]',
-        'transition-all duration-280',
+        'transition-all duration-280 ease-[cubic-bezier(0.22,1,0.36,1)]',
         variantStyles[type],
         isVisible && !isLeaving
-          ? 'translate-x-0 opacity-100'
-          : 'translate-x-4 opacity-0',
+          ? 'translate-y-0 opacity-100 scale-100'
+          : 'translate-y-2 opacity-0 scale-[0.98]',
       )}
       role="alert"
       aria-live="polite"
     >
       <Icon className="w-4 h-4 flex-shrink-0 mt-0.5 opacity-80" />
-      <p className="text-sm font-medium flex-1 leading-snug">{message}</p>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold leading-snug tracking-tight">{title}</p>
+        {body && <p className="text-xs opacity-85 mt-0.5 leading-relaxed">{body}</p>}
+      </div>
       <button
         type="button"
         onClick={handleClose}
@@ -101,7 +107,7 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({
 
   return (
     <div
-      className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2"
+      className="fixed bottom-5 right-5 z-[100] flex flex-col-reverse gap-2.5 pointer-events-none [&>*]:pointer-events-auto"
       aria-live="polite"
       aria-atomic="true"
     >

@@ -73,3 +73,29 @@ export function defaultHomePath(user: User | null | undefined): string {
     const p = resolvePermissions(user);
     return p.isSocio ? '/tasks' : '/dashboard';
 }
+
+/** Permesso richiesto per ogni voce di navigazione (`viewId` della sidebar / ricerca). */
+export const VIEW_ID_PERMISSION: Record<string, keyof UserPermissions | null> = {
+    clienti: 'viewClients',
+    dashboard: 'viewDashboard',
+    progetti: 'viewProjects',
+    tasks: 'viewMyTasks',
+    reports: 'viewReports',
+    calendario: 'viewCalendar',
+    inbox: 'viewInbox',
+    contabilita: 'viewBilling',
+    notifiche: null,
+    help: null,
+    settings: null,
+    admin: 'manageUsers',
+    recruiting: 'manageUsers',
+};
+
+export function canAccessView(
+    user: User | null | undefined,
+    viewId: string,
+): boolean {
+    const perm = VIEW_ID_PERMISSION[viewId];
+    if (perm == null) return true;
+    return resolvePermissions(user)[perm];
+}

@@ -4,6 +4,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { dropdown } from '../motion/variants';
 import { useReducedMotion } from '../motion/useReducedMotion';
 import { Avatar } from '../components/ui/Avatar';
+import { useAuth } from '../app/AuthProvider';
+import { canAccessView } from '../lib/permissions';
 import type { User } from '../types/models';
 
 interface TopBarProps {
@@ -26,6 +28,7 @@ const SEARCH_TARGETS = [
 ];
 
 export function TopBar({ user, onLogout, onNavigate, onQuickAction }: TopBarProps) {
+    const { user: authUser } = useAuth();
     const reduced = useReducedMotion();
     const [menuOpen, setMenuOpen] = useState(false);
     const [query, setQuery] = useState('');
@@ -33,13 +36,18 @@ export function TopBar({ user, onLogout, onNavigate, onQuickAction }: TopBarProp
     const ref = useRef<HTMLDivElement>(null);
     const searchRef = useRef<HTMLDivElement>(null);
 
+    const allowedTargets = useMemo(
+        () => SEARCH_TARGETS.filter((t) => canAccessView(authUser, t.view)),
+        [authUser],
+    );
+
     const results = useMemo(() => {
         const q = query.trim().toLowerCase();
-        if (!q) return SEARCH_TARGETS.slice(0, 5);
-        return SEARCH_TARGETS.filter(t =>
-            `${t.label} ${t.hint}`.toLowerCase().includes(q)
+        if (!q) return allowedTargets.slice(0, 5);
+        return allowedTargets.filter((t) =>
+            `${t.label} ${t.hint}`.toLowerCase().includes(q),
         );
-    }, [query]);
+    }, [query, allowedTargets]);
 
     useEffect(() => {
         const onClick = (e: MouseEvent) => {
@@ -132,13 +140,15 @@ export function TopBar({ user, onLogout, onNavigate, onQuickAction }: TopBarProp
                     <Bell className="w-4 h-4" />
                     <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-brand-500 ring-2 ring-surface-raised" />
                 </button>
-                <button
-                    className="icon-btn"
-                    aria-label="Chat"
-                    onClick={() => onNavigate?.('inbox')}
-                >
-                    <MessageSquare className="w-4 h-4" />
-                </button>
+                {canAccessView(authUser, 'inbox') && (
+                    <button
+                        className="icon-btn"
+                        aria-label="Chat"
+                        onClick={() => onNavigate?.('inbox')}
+                    >
+                        <MessageSquare className="w-4 h-4" />
+                    </button>
+                )}
 
                 <div className="relative" ref={ref}>
                     <button

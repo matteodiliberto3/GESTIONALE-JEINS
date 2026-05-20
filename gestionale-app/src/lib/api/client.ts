@@ -103,8 +103,9 @@ export async function apiCall(
         if (!response.ok) {
             const error = await response.json().catch(() => ({ error: 'Errore sconosciuto' }));
 
+            // 401 = sessione scaduta; 403 = permessi insufficienti (non fare logout)
             if (
-                (response.status === 401 || response.status === 403) &&
+                response.status === 401 &&
                 !retried &&
                 !endpoint.includes('/api/auth/login') &&
                 !endpoint.includes('/api/auth/register') &&
@@ -115,7 +116,7 @@ export async function apiCall(
                     return apiCall(endpoint, options, fetchMock, true);
                 }
                 notifyUnauthorized();
-            } else if (response.status === 401 || response.status === 403) {
+            } else if (response.status === 401) {
                 notifyUnauthorized();
             }
 

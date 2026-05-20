@@ -1,14 +1,22 @@
-/** Notifiche in-app — sostituisce il dispatch diretto di `app:notice`. */
+/** Notifiche in-app (toast) — evento globale `app:notice`. */
+
+import type { ToastType } from '../components/ui/Toast';
 
 export interface NoticeDetail {
     title: string;
     message?: string;
+    variant?: ToastType;
 }
 
-export function openNotice(title: string, message?: string) {
+export function showNotice(variant: ToastType, title: string, message?: string) {
     window.dispatchEvent(
         new CustomEvent<NoticeDetail>('app:notice', {
-            detail: { title, message: message ?? '' },
+            detail: { variant, title, message: message ?? '' },
         }),
     );
+}
+
+/** Informativo (comportamento legacy). */
+export function openNotice(title: string, message?: string) {
+    showNotice('info', title, message);
 }

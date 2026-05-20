@@ -76,8 +76,8 @@ export function AppRoutes() {
                 <Route path="notifiche" element={<></>} />
                 <Route path="help" element={<></>} />
                 <Route path="settings" element={<></>} />
-                <Route path="admin" element={<Lazy><AdminPage /></Lazy>} />
-                <Route path="recruiting" element={<Lazy><RecruitingRoute /></Lazy>} />
+                <Route path="admin" element={<Guard perm="manageUsers"><Lazy><AdminPage /></Lazy></Guard>} />
+                <Route path="recruiting" element={<Guard perm="manageUsers"><Lazy><RecruitingRoute /></Lazy></Guard>} />
             </Route>
             <Route path="*" element={<HomeRedirect />} />
         </Routes>

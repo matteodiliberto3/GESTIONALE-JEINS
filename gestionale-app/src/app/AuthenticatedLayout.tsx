@@ -6,7 +6,8 @@ import { UtilityView } from '../components/UtilityView';
 import { useAuth } from './AuthProvider';
 import { useProjects } from '../features/data/hooks';
 import { openNotice as notify } from '../utils/notice';
-import { resolvePermissions } from '../lib/permissions';
+import { canAccessView, resolvePermissions } from '../lib/permissions';
+import { showNotice } from '../utils/notice';
 
 const VIEW_TITLES: Record<string, string> = {
     dashboard: 'Dashboard',
@@ -48,8 +49,12 @@ export function AuthenticatedLayout() {
     const title = VIEW_TITLES[activeView] || 'Gestionale';
 
     const setActiveView = (view: string) => {
+        if (!canAccessView(user, view)) {
+            showNotice('warning', 'Sezione non disponibile', 'Non hai i permessi per questa area.');
+            return;
+        }
         const path = view === 'dashboard' ? '/dashboard' : `/${view}`;
-        navigate(path);
+        if (location.pathname !== path) navigate(path);
     };
 
     const openNotice = (noticeTitle: string, message?: string) => {

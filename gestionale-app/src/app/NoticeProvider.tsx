@@ -4,15 +4,19 @@ import { ToastContainer } from '../components/ui/Toast';
 import type { NoticeDetail } from '../utils/notice';
 
 export function NoticeProvider({ children }: { children: React.ReactNode }) {
-    const { toasts, info, removeToast } = useToast();
+    const { toasts, info, success, error, warning, removeToast } = useToast();
 
     const onNotice = useCallback(
         (e: Event) => {
-            const { title, message } = (e as CustomEvent<NoticeDetail>).detail;
+            const { title, message, variant = 'info' } = (e as CustomEvent<NoticeDetail>).detail;
             const text = message ? `${title} — ${message}` : title;
-            info(text, 4200);
+            const duration = variant === 'error' ? 5200 : 4200;
+            if (variant === 'success') success(text, duration);
+            else if (variant === 'error') error(text, duration);
+            else if (variant === 'warning') warning(text, duration);
+            else info(text, duration);
         },
-        [info],
+        [info, success, error, warning],
     );
 
     useEffect(() => {
