@@ -359,7 +359,47 @@ flowchart TD
 - [ ] Focus visibile (`:focus-visible` in `index.css`) non rimosso  
 - [ ] Modali nuove o form in modale: **tab order** (campi → azioni), ESC/chiusura coerente con `AppModal`/`Modal` — stessi criteri in [Cap. 9 — DoD PR](./cap09-pr-review-testing.md#91-definition-of-done-mid-level)
 
-**Accessibilità minima JEINS:** non serve WCAG audit completo su ogni PR; serve che un utente da tastiera possa aprire la modale, compilare e chiudere senza trappole di focus.
+### 8.1 Test accessibilità manuale (5 minuti — spiegato per neofiti)
+
+**Cosa significa “accessibilità minima” qui:** non stiamo chiedendo un audit WCAG completo. Chiediamo che una persona che usa **solo la tastiera** (Tab, Shift+Tab, Invio, Esc) riesca a completare il flusso senza rimanere “intrappolata” nella modale o senza vedere dove è il focus.
+
+**Quando farlo:** ogni PR che aggiunge o modifica una **modale** (`AppModal`, `Modal`, `MotionDialog`) o un **form** con più campi.
+
+#### Passo 1 — Apri la modale senza mouse
+
+1. Vai alla Page (es. Clienti).
+2. Premi **Tab** finché il focus (anello evidenziato, da `:focus-visible` in `index.css`) arriva al bottone “Aggiungi” / “Nuovo”.
+3. Premi **Invio** → la modale deve aprirsi.
+
+**Se il focus non si vede:** non rimuovere `outline` con `outline-none` senza sostituire uno stile `:focus-visible` — altrimenti chi usa tastiera non sa dove si trova.
+
+#### Passo 2 — Tab order (ordine di tabulazione)
+
+Dentro la modale, premi **Tab** ripetutamente e annota l’ordine:
+
+1. Primo campo input (es. Nome).
+2. Altri campi in ordine logico dall’alto verso il basso.
+3. Bottoni secondari (Annulla).
+4. Bottone primario (Salva) — di solito per ultimo.
+
+❌ **Problema grave:** dopo l’ultimo campo il focus salta **dietro** la modale sulla pagina sottostante — significa che manca **focus trap** o `aria-modal` sul componente modale. In quel caso usa `AppModal` / `Modal` del design system, non un `div` fixed fatto in casa.
+
+#### Passo 3 — Chiusura
+
+1. Premi **Esc** → la modale deve chiudersi (se il componente lo supporta — `Modal` / `AppModal` JEINS sì).
+2. Oppure Tab fino ad **Annulla** + Invio.
+
+Il focus dovrebbe tornare al bottone che ha aperto la modale (comportamento ideale; se non succede, segnalalo in PR come nota minore).
+
+#### Passo 4 — Salva con tastiera
+
+1. Compila un campo obbligatorio con la tastiera.
+2. Tab fino a **Salva** → Invio.
+3. Verifica messaggio di successo o chiusura modale **senza** usare il mouse.
+
+**Registra nella PR:** “Test a11y manuale: Tab order OK, Esc chiude, focus visibile”.
+
+**Accessibilità minima JEINS:** non serve WCAG audit completo su ogni PR; serve che un utente da tastiera possa aprire la modale, compilare e chiudere senza trappole di focus. Dettaglio in [Cap. 9 DoD](./cap09-pr-review-testing.md#91-definition-of-done-mid-level).
 
 ---
 
@@ -372,4 +412,4 @@ flowchart TD
 
 ---
 
-*Capitolo 5 — v1 — UI JEINS — maggio 2026*
+*Capitolo 5 — v3 — guida a11y manuale esaustiva — maggio 2026*

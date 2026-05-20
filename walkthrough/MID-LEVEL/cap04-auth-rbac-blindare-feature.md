@@ -327,13 +327,36 @@ Se il product owner chiede **solo Admin** per delete: aggiungi regola esplicita 
 
 ## 4. Checklist Mid-Level — nuova feature sensibile
 
-1. [ ] Aggiorna `docs/RBAC.md` (chi può cosa).  
-2. [ ] Backend: `router.use(authenticateToken)` + middleware dominio (`requireXWrite`).  
-3. [ ] Se nuovo permesso: estendi `getPermissionsForUser` **e** `resolvePermissions` con lo stesso nome.  
-4. [ ] Login/`/users/me` espongono `permissions` aggiornati.  
-5. [ ] Route React con `Guard perm="view…"`.  
-6. [ ] Pulsanti critici condizionati a `manage…`.  
-7. [ ] Test manuale: utente **senza** permesso → 403 su API (DevTools → Network), non solo bottone nascosto.
+### 4.1 Documentazione e codice (ordine consigliato)
+
+1. [ ] Aggiorna `docs/RBAC.md` — tabella “ruolo X può Y” comprensibile al product owner.  
+2. [ ] Backend: `router.use(authenticateToken)` su tutto il router della feature.  
+3. [ ] Backend: middleware per metodo (`requireXWrite` su POST/PUT/DELETE, `requireNotSocio` su GET lista se applicabile).  
+4. [ ] Se nuovo permesso booleano: **stesso nome** in `backend/lib/permissions.js` (`getPermissionsForUser`) e `gestionale-app/src/lib/permissions.ts` (`resolvePermissions`).  
+5. [ ] Verifica che login o `GET /api/users/me` restituisca `user.permissions` aggiornato (il frontend preferisce quello dal server).  
+6. [ ] Frontend: route in `router.tsx` wrappata con `<Guard perm="view…">`.  
+7. [ ] Frontend: voce menu in `IconRail` con lo stesso `perm` — menu e route devono coincidere.  
+8. [ ] Frontend: pulsanti “Crea / Modifica / Elimina” visibili solo se `manage…` è true (la Page passa `onDelete={undefined}` se non autorizzato).
+
+### 4.2 Test manuale RBAC in 30 secondi (obbligatorio prima della PR)
+
+**Perché:** nascondere un bottone **non** protegge i dati. Chiunque può aprire DevTools → Console e lanciare `fetch('/api/...', { method: 'DELETE', headers: { Authorization: 'Bearer ' + localStorage.getItem('token') } })`.
+
+| Passo | Cosa fare | Esito atteso |
+|-------|-----------|--------------|
+| 1 | Login come utente **senza** permesso di scrittura (es. ruolo che vede ma non gestisce fatture) | — |
+| 2 | Apri la pagina: il bottone Elimina / Crea **non** compare (UX) | OK UX |
+| 3 | DevTools → **Network** → prova l’azione vietata (o ripeti la `fetch` DELETE dalla console verso l’endpoint reale) | Status **403 Forbidden**, body con `error` in italiano |
+| 4 | Login come utente **con** permesso | Stessa azione → **200** o **204** |
+
+**Due utenti da tenere pronti in locale (seed):**
+
+| Utente tipico | Cosa verificare |
+|---------------|-----------------|
+| Admin / IT | Accesso ampio — smoke che la feature non sia rotta |
+| Socio o ruolo area limitata | Deve ricevere **403** su liste/azioni management se la feature è riservata |
+
+Se il passo 3 dà **200** a un utente che non dovrebbe poterlo fare, **blocca la PR** — è un bug di sicurezza, non un “dettaglio UI”.
 
 ---
 
@@ -360,4 +383,4 @@ Se il product owner chiede **solo Admin** per delete: aggiungi regola esplicita 
 
 ---
 
-*Capitolo 4 — v1 — Auth + RBAC JEINS — maggio 2026*
+*Capitolo 4 — v3 — test RBAC passo-passo — maggio 2026*

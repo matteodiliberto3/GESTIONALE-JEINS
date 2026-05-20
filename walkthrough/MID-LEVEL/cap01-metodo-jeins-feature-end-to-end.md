@@ -344,6 +344,18 @@ export const createReimbursementSchema = z.object({
 
 ✅ **Mid-Level:** Zod o `AppError` nel backend; il frontend replica solo per UX.
 
+> **File dell’esempio Rimborsi — da creare tu con la feature reale**  
+> Nel tutorial compaiono path che **non esistono** finché non implementi il dominio. Non cercarli con grep — non sono nel repo:
+>
+> | File citato nell’esempio | Quando lo crei |
+> |--------------------------|----------------|
+> | `backend/lib/expenseReimbursements.js` | Fase 2 Cap. 1 — tutto il SQL qui |
+> | `backend/routes/expenseReimbursements.js` | Fase 3 — route sottile che chiama il `lib/` |
+> | `backend/validators/expenseReimbursementSchemas.js` | Fase 3 — schema Zod + `validateBody` |
+> | `gestionale-app/.../ExpenseReimbursementsPage.tsx` | Fase 4 — dopo che l’API risponde |
+>
+> Per **imparare** senza inventare un dominio: traccia **Clienti** (`ClientsPage` → `clients.js`) — file tutti reali.
+
 ### 3.3 Montare l’API
 
 📁 `backend/app.js`

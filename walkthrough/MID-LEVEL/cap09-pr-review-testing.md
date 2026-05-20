@@ -13,9 +13,10 @@ Prima di aprire la PR, verifica [Capitolo 1 — Metodo JEINS](./cap01-metodo-jei
 - [ ] Loading + errori in Page
 - [ ] Messaggi utente nuovi in **italiano** (label, toast, errori in UI)
 - [ ] Modali/form toccati: **tab order** coerente (primo campo → Salva/Annulla), chiusura ESC se supportata, focus visibile non rimosso
-- [ ] Mock dev disattivato; nessun dato finto committato nel `queryFn` (vedi [Cap. 8 §5.4](./cap08-react-query-chiavi-cache.md#54-mock-solo-dev))
+- [ ] Mock dev disattivato; nessun dato finto committato nel `queryFn` (vedi [Cap. 8 §8.4](./cap08-react-query-chiavi-cache.md#84-mock-solo-dev---cosa-sono-e-cosa-non-committare))
 - [ ] Nessun segreto in commit (`.env` fuori da git)
 - [ ] `cd gestionale-app && npm test` (Vitest) + `npm run build` senza errori TS
+- [ ] `cd gestionale-app && npm run lint` se hai modificato file in `src/` (ESLint — vedi §9.5)
 - [ ] `cd backend && npm test` verde se hai toccato `lib/` o `services/`
 
 ---
@@ -70,19 +71,38 @@ Leggi il diff come se fossi il Tech Lead:
 
 ## 9.5 Test in questo repo
 
-| Livello | Comando | Quando |
-|---------|---------|--------|
-| Backend unit | `cd backend && npm test` | logica in `lib/`, `services/` |
-| Frontend unit (Vitest) | `cd gestionale-app && npm test` | ogni PR FE; obbligatorio se tocchi `lib/`, hook, utils testabili |
-| Frontend watch | `cd gestionale-app && npm run test:watch` | sviluppo TDD locale |
-| Frontend build | `cd gestionale-app && npm run build` | ogni PR FE (typecheck + bundle) |
-| E2E Playwright | `cd gestionale-app && npm run test:e2e` | smoke in `e2e/` — **non obbligatorio** su ogni PR piccola; usalo se tocchi routing/auth critico o il reviewer lo chiede |
-| Manuale | browser + due utenti per 409 | update con `version` |
+Ogni comando verifica qualcosa di **diverso**. Il neofita spesso esegue solo `npm run dev` e dice “funziona” — in review chiediamo almeno build + test dove applicabile.
 
-**Copertura attuale (non aspettarti una suite piena):** pochi test Vitest (es. `src/lib/api/client.test.ts`) e smoke Playwright (`e2e/smoke.spec.ts`). Il Mid-Level **aggiunge** test unit quando introduce logica non banale in `lib/` o utils; per il resto documenta **passi manuali** nella PR.
+| Livello | Comando | Cosa controlla | Quando è obbligatorio |
+|---------|---------|----------------|------------------------|
+| Backend unit | `cd backend && npm test` | Logica in `lib/`, `services/` (Jest) | Hai toccato regole business server |
+| Frontend unit | `cd gestionale-app && npm test` | Vitest — es. `lib/api/client.test.ts` | Ogni PR che modifica `lib/`, utils, hook testabili |
+| Frontend watch | `cd gestionale-app && npm run test:watch` | Riesegue test al salvataggio | Mentre scrivi nuovi test |
+| Frontend build | `cd gestionale-app && npm run build` | `tsc` + bundle Vite — errori di tipo | **Ogni** PR frontend |
+| Frontend lint | `cd gestionale-app && npm run lint` | ESLint su `src/` — stile, hook rules, import | PR che tocca `src/` (evita warning evitabili in review) |
+| E2E Playwright | `cd gestionale-app && npm run test:e2e` | Smoke browser in `e2e/` | Opzionale su PR piccole; consigliato se tocchi login, router, shell |
+| Manuale browser | due tab, stesso record, due save | Conflitto **409** e `ConflictDialog` | Ogni form di modifica con `version` |
+| Manuale RBAC | DevTools Network + utente senza permesso | **403** su API, non solo UI | Feature con permessi nuovi ([Cap. 4 §4.2](./cap04-auth-rbac-blindare-feature.md#42-test-manuale-rbac-in-30-secondi-obbligatorio-prima-della-pr)) |
 
-❌ Junior: solo `npm run build` e zero `npm test` in `gestionale-app` con logica nuova in `lib/`.  
-✅ Mid-Level: build + Vitest verde; E2E Playwright se la feature impatta login o navigazione globale.
+### Cosa c’è oggi nel repo (aspettative realistiche)
+
+- **Vitest:** pochi file (es. `src/lib/api/client.test.ts`) — non c’è ancora un test per ogni Page.
+- **Playwright:** `e2e/smoke.spec.ts` — smoke minimo, non copre tutti i domini.
+- **Backend:** suite Jest su moduli critici — estendi quando aggiungi logica non banale.
+
+**Il Mid-Level aggiunge** test quando introduce funzioni pure (validazione, merge conflitti, paginazione). Per il resto, la sezione **“Come testare”** nella descrizione PR deve essere **passo-passo** (con quale utente, quale URL, cosa aspettarsi).
+
+### Sequenza consigliata prima di `git push`
+
+```bash
+cd backend && npm test          # se hai toccato backend
+cd gestionale-app && npm test   # Vitest
+cd gestionale-app && npm run lint
+cd gestionale-app && npm run build
+```
+
+❌ **Junior:** solo `npm run build`, zero `npm test`, PR con “testato a occhio”.  
+✅ **Mid-Level:** build verde + Vitest verde + lint senza errori nuovi + passi manuali scritti nella PR.
 
 ---
 
@@ -111,4 +131,4 @@ Niente trailer promozionali verso tool AI (regola team).
 
 ---
 
-*Capitolo 9 — v2*
+*Capitolo 9 — v3*

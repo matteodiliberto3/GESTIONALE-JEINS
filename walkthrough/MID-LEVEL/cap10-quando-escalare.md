@@ -29,7 +29,7 @@
 
 ❌ Junior: escalare senza screenshot / senza aver letto l’error handler.
 
-✅ Mid-Level: issue con ipotesi (“il 409 non include `serverVersion` nel body”).
+✅ Mid-Level: issue con ipotesi (“il 409 non include `serverData` / `currentVersion` nel body” — vedi [Cap. 3 §2.2.1](./cap03-gestione-conflitti-dati-concorrenti.md#221-glossario-body-json-del-409-nomi-esatti-nel-repo)).
 
 ---
 
@@ -86,4 +86,47 @@ Sei Mid-Level autonomo quando, **senza** chiedere ogni passo:
 
 ---
 
-*Capitolo 10 — v2*
+## 10.8 Template issue / messaggio di escalation (copia e compila)
+
+Quando escali, **non** scrivere solo “non funziona”. Il Senior perde tempo a ricostruire il contesto. Incolla questo blocco in Slack/Jira/commento PR e compila ogni campo.
+
+```markdown
+## Escalation — [breve titolo]
+
+### Ambiente
+- Branch: `nome-branch` / PR #123
+- Locale o staging: [locale / staging URL]
+- Commit: `abc1234` (opzionale)
+
+### Cosa volevo fare
+[es. Salvare modifica cliente con version, migration X, nuovo permesso Y]
+
+### Cosa succede invece
+[es. 409 senza ConflictDialog / migration fallisce con errore PostgreSQL / lista non si aggiorna]
+
+### Passi per riprodurre (numerati)
+1. Login come `ruolo@...`
+2. Vai su `/clients`
+3. …
+
+### Evidenze
+- Screenshot Network tab (status, URL, body risposta 409/403)
+- Log backend (Terminal 1) — incolla le ultime 20 righe
+- Query SQL o nome file migration se rilevante
+
+### Cosa ho già provato (2–4 ore)
+- [ ] Letto capitolo playbook: Cap. …
+- [ ] `npm run migrate:all` / `npm test` / build
+- Ipotesi: [es. "il body 409 non ha serverData"]
+
+### Urgenza
+- [ ] Blocca release / dati in produzione
+- [ ] Blocca solo la mia feature
+- [ ] Chiarimento architetturale prima di codare
+```
+
+**Per il neofita:** compilare questo template **prima** di taggare il Tech Lead aumenta molto la probabilità di risposta rapida e precisa.
+
+---
+
+*Capitolo 10 — v3*

@@ -316,20 +316,34 @@ TanStack Query v5 espone flag che **devi** gestire in ogni Page con dati remoti.
 
 ### 5.2 Template rigoroso (Page)
 
-```tsx
-const { data: clients = [], isLoading, isError, error, isSuccess, isFetching } = useClients();
+**Perché serve un template:** senza ordine fisso, il neofita renderizza `<ClientiView clients={data!} />` mentre `data` è ancora `undefined` → schermo bianco o crash. Gli `if` vanno **prima** del return principale.
 
-// 1) Blocco caricamento iniziale
+**Cosa restituisce `useQuery` (TanStack Query v5):** oltre a `data`, ricevi funzioni come `refetch`. Se nel bottone “Riprova” chiami `refetch()`, devi **estrarla** nel destructuring — altrimenti TypeScript segnala errore e in runtime `refetch is not defined`.
+
+```tsx
+const {
+    data: clients = [],
+    isLoading,
+    isError,
+    error,
+    isSuccess,
+    isFetching,
+    refetch,  // ← obbligatorio se mostri "Riprova"
+} = useClients();
+
+// 1) Blocco caricamento iniziale — isLoading = prima fetch, cache vuota
 if (isLoading) {
     return <p className="text-ink-muted">Caricamento clienti…</p>;
 }
 
-// 2) Blocco errore
+// 2) Blocco errore — rete, 401, 500, messaggio da apiCall
 if (isError) {
     return (
         <div className="text-rose-400">
             <p>{(error as Error).message}</p>
-            <button type="button" onClick={() => refetch()}>Riprova</button>
+            <button type="button" onClick={() => refetch()}>
+                Riprova
+            </button>
         </div>
     );
 }
@@ -430,4 +444,4 @@ Approfondimento chiavi avanzate: [Capitolo 8](./cap08-react-query-chiavi-cache.m
 
 ---
 
-*Capitolo 2 — v1 — TanStack Query v5 — gestionale-app maggio 2026*
+*Capitolo 2 — v3 — template refetch documentato — maggio 2026*

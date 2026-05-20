@@ -101,11 +101,25 @@ if (expectedVersion !== undefined) {
 // Solo se la version coincide → UPDATE
 ```
 
-| Campo risposta 409 | Uso frontend |
-|--------------------|--------------|
-| `error: 'CONCURRENT_MODIFICATION'` | `apiCall` → `ConcurrentModificationError` |
-| `serverData` | snapshot attuale per il dialog |
-| `currentVersion` / `expectedVersion` | debug e retry |
+### 2.2.1 Glossario body JSON del 409 (nomi esatti nel repo)
+
+Quando il backend risponde **409**, il JSON ha campi **fissi**. Non confondere i nomi: in JEINS non esiste `serverVersion` nel body — la versione attuale sul server si chiama `currentVersion`.
+
+| Campo | Tipo | Significato | Chi lo usa |
+|-------|------|-------------|------------|
+| `error` | stringa | Valore `'CONCURRENT_MODIFICATION'` | `lib/api/client.ts` riconosce il 409 e lancia `ConcurrentModificationError` |
+| `message` | stringa | Testo in italiano per l’utente | Dialog e toast |
+| `expectedVersion` | numero | Versione che **il client** credeva fosse ancora valida (quella letta all’apertura del form) | Debug: “stavo salvando come v5 ma sul server era già v6” |
+| `currentVersion` | numero | Versione **adesso** sul database | Retry: il prossimo `PUT` deve usare questa come `expectedVersion` |
+| `serverData` | oggetto | Snapshot completo del record sul server (nome, status, `version`, …) | `ConflictDialog` mostra “cosa c’è sul server” e alimenta merge |
+
+**Flusso mentale per il neofita:**
+
+1. Apri modale modifica → `GET` cliente → memorizzi `version: 5` nel state del form.
+2. Invii `PUT` con `expectedVersion: 5` nel body.
+3. Nel frattempo un collega salva → sul DB `version` diventa `6`.
+4. Il tuo `PUT` non aggiorna righe → backend risponde 409 con `currentVersion: 6` e `serverData` aggiornato.
+5. La UI **non** chiude il form in silenzio: apre `ConflictDialog` e chiede cosa fare.
 
 Stesso pattern in 📁 `projects.js`, `contracts.js`, `events.js`.
 

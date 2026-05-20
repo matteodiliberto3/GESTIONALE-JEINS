@@ -53,6 +53,37 @@ Cap 0 (setup) → Cap 1 (ogni feature) → Cap 2 + 3 (dati FE) → Cap 4 (se toc
 Cap 6–8 = approfondimenti su richiesta · Cap 9 prima della PR · Cap 10 se bloccato
 ```
 
+### Primo giorno vs prima feature
+
+| Giorno | Obiettivo | Capitoli |
+|--------|-----------|----------|
+| 1 | Avviare repo, tracciare **Clienti** end-to-end | [Cap. 0](./cap00-onboarding-mappa-repo.md) — **non** cercare Rimborsi Spese nel codice |
+| 2–3 | Leggere metodo e React Query | [Cap. 1](./cap01-metodo-jeins-feature-end-to-end.md), [Cap. 2](./cap02-uccidere-useeffect-react-query.md) |
+| 4+ | Prima modifica guidata dal team (campo piccolo su dominio esistente) | Cap. 1 + [Cap. 9](./cap09-pr-review-testing.md) |
+
+### Stack e test (riferimento rapido)
+
+| Parte | Tecnologia | Verifica in PR |
+|-------|------------|----------------|
+| Frontend | React 19, Vite, TanStack Query, Tailwind | `npm test`, `npm run lint`, `npm run build` |
+| Backend | Express (ESM), `pg`, Zod | `npm test` se tocchi `lib/` |
+| E2E | Playwright (smoke) | Opzionale — `npm run test:e2e` |
+| DB | PostgreSQL + `migration_*.sql` | `npm run migrate:all` in locale |
+
+### Glossario minimo (leggi una volta)
+
+| Termine | Significato in JEINS |
+|---------|----------------------|
+| **Page** | Componente che orchestra hook, modali, permessi (`pages/`) |
+| **View** | UI che riceve solo props (`views/`) |
+| **Server state** | Dati dal backend — vivono in React Query, non in `useState` |
+| **queryKey** | Etichetta cache — definita solo in `lib/query/keys.ts` |
+| **invalidate** | “Segna dati vecchi” dopo un save — lista si aggiorna |
+| **version** | Numero intero per optimistic locking — vedi [Cap. 3](./cap03-gestione-conflitti-dati-concorrenti.md) |
+| **409** | Conflitto di modifica — aprire `ConflictDialog`, non toast generico |
+| **Socio / area** | Concetti RBAC — matrice in `docs/RBAC.md` |
+| **Mid-Level** | Consegna feature E2E con checklist Cap. 9 senza istruzioni passo-passo dal lead |
+
 ---
 
 ## Convenzioni di lettura
@@ -70,7 +101,7 @@ Cap 6–8 = approfondimenti su richiesta · Cap 9 prima della PR · Cap 10 se bl
 | Tema | Regola |
 |------|--------|
 | **Messaggi utente (i18n)** | Testi visibili all’utente (UI, toast, `NoticeProvider`, label form, messaggi `AppError` mostrati in FE) in **italiano**, tono professionale e chiaro. Codice, log, commenti e nomi API in inglese/camelCase come nel resto del repo. Non introdurre librerie i18n senza accordo Tech Lead. |
-| **Mock dati (solo dev)** | Attivabile da `localStorage` / pannello dev (`shouldUseMockData` in `lib/api/client.ts`). Mai in produzione. Prima della PR: disattiva mock e verifica contro API reale — [Cap. 8 §5.4](./cap08-react-query-chiavi-cache.md#54-mock-solo-dev). |
+| **Mock dati (solo dev)** | Attivabile da `localStorage` / pannello dev (`shouldUseMockData` in `lib/api/client.ts`). Mai in produzione. Prima della PR: disattiva mock e verifica contro API reale — [Cap. 8 §8.4](./cap08-react-query-chiavi-cache.md#84-mock-solo-dev---cosa-sono-e-cosa-non-committare). |
 | **Accessibilità minima** | Modali e form: tab order logico, chiusura ESC dove il componente lo supporta, `:focus-visible` non rimosso — [Cap. 9 DoD](./cap09-pr-review-testing.md#91-definition-of-done-mid-level). |
 
 ---
@@ -88,7 +119,7 @@ Cap 6–8 = approfondimenti su richiesta · Cap 9 prima della PR · Cap 10 se bl
 - [ ] Messaggi utente nuovi in italiano (convenzione i18n)
 - [ ] Modali/form toccati: tab order e focus visibile verificati a mano
 - [ ] Mock dev disattivato; nessun bypass mock nel codice committato
-- [ ] `npm test` in `backend` + `cd gestionale-app && npm test` (Vitest) + `npm run build` senza errori
+- [ ] `npm test` in `backend` (se tocchi `lib/`) + `cd gestionale-app && npm test` + `npm run lint` + `npm run build` senza errori
 
 ### Migrazioni — comando ufficiale
 
@@ -100,4 +131,4 @@ Cap 6–8 = approfondimenti su richiesta · Cap 9 prima della PR · Cap 10 se bl
 
 ---
 
-*Playbook v2.1 — solo `cap00`–`cap10`, convenzioni i18n/mock/a11y/test — maggio 2026*
+*Playbook v3 — appendici esaustive, glossario, test/lint, template escalation — maggio 2026*
