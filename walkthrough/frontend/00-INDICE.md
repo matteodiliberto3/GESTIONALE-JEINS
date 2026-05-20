@@ -258,3 +258,4 @@
 | Query | `gestionale-app/src/lib/query/` |
 | RBAC (backend + doc) | `docs/RBAC.md`, `backend/lib/permissions.js` |
 | Manuale backend (parallelo) | `walkthrough/BACKEND/00-INDICE.md` |
+| Playbook operativo Mid-Level (feature E2E, PR) | [walkthrough/MID-LEVEL/00-INDICE.md](../MID-LEVEL/00-INDICE.md) |

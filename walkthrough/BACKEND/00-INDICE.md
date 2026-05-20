@@ -11,6 +11,7 @@
 - Le sezioni *Trade-off / Alternative scartate* e *Sotto carico ×100* sono obbligatorie dove indicate nell’indice.
 - Documentazione esistente in `docs/` e `ARCHITETTURA.md` viene **referenziata**, non duplicata pedissequamente.
 - Ogni capitolo redatto include **diagrammi Mermaid** (container, pattern, sequenze, stati) per la lettura ad alto livello.
+- Per **implementare** route, migration e PR sul backend in modo operativo: [Playbook Mid-Level](../MID-LEVEL/00-INDICE.md) (Cap. 1, 4, 6, 9) — questo manuale resta sulla profondità architetturale.
 
 ---
 
